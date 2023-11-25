@@ -1,3 +1,7 @@
+#include <Arduino.h>
+#include <SoftwareSerial.h>
+#include <Ultrasonic.h>
+
 #define TRIGD A0 // Pino Trig Sensor Direito
 #define ECHOD A1 // Pino Echo Sensor Direito
 #define TRIGE A2 // Pino Trig Sensor Esquerdo
@@ -5,140 +9,137 @@
 #define TRIGC A4 // Pino Trig Sensor Centro
 #define ECHOC A5 // Pino Echo Sensor Centro
 #define ENA 5    // ENA PWM Motor Esquerdo
-#define ENB 6    // ENB PWM Motor Direito///
+#define ENB 6    // ENB PWM Motor Direito
 #define IN1 3    // DIR Motor Esquerdo
 #define IN2 9    // DIR Motor Esquerdo
-#define IN3 10    // DIR Motor Direito
+#define IN3 10   // DIR Motor Direito
 #define IN4 11   // DIR Motor Direito
-#define alpha 1  // taxa do filtro 0% a 100%
+
+#define led_amarelo_esquerda 2
+#define led_azul_direita 7
+
+Ultrasonic sensorD(A0, A1);
+Ultrasonic sensorE(A2, A3); 
+Ultrasonic sensorC(A4, A5);
+// porta botao 4
+
+SoftwareSerial bluetooth(13, 12); // rx, tx amarelo e verde respectivamente
 
 // Variáveis Globais
-unsigned int distanciaE; // unsigneg significa valores sem sinasi, + ou -
-unsigned int distanciaC; // int considera valores ate 2^16
-unsigned int distanciaD;
-unsigned char vel = 150; // char considera valores ate 2^8 ou seja, 0 a 256
+float distanciaE;
+float distanciaC;
+float distanciaD;
+int vel = 100;
 
-unsigned int sensorUS(int pinoTrig, int pinoEcho)
+float speed = 1.0; // throttle in % percent
+unsigned long time;
+/*Parâmetros para ajustar*/
+
+// Valor máximo 255 para potência total
+// float VEL_MAX = 90;
+
+/* Ajuste de alinhamento em reta */
+
+float MAX_DELTA = 40;
+
+float MAX = 100;
+float MIN = 85;
+
+// // Distancia em cm de tolerância no alinhamento em reta
+// float TOLERANCIA_AJUSTE = 1;
+
+// // Fator para corrigir o alinhamento (quanto maior mais intensamente ele alinha)
+// float INTENSIDADE_AJUSTE = 2;
+
+// /* Ajuste de curvas **/
+
+// // Distancia máxima em cm da parede lateral para iniciar a curva
+// float TOLERANCIA_CURVA = 10;
+
+// // Distância tolerável para o sensor da frente
+// float DIST_FRENTE_MIN = 5;
+
+// // Distância em cm para o sensor da frente iniciar a curva
+// float DIST_FRENTE_MAX = 25;
+
+float filtro(float atual, float anterior, float alpha)
 {
-  unsigned int distancia;
-  unsigned int tempoPulsoEcho;
-  digitalWrite(pinoTrig, HIGH);                   // Ativa o pino de trigger
-  delayMicroseconds(10);                          // Aguarda 10 microssegundos
-  digitalWrite(pinoTrig, LOW);                    // Desativa o pino de trigger
-  tempoPulsoEcho = pulseIn(pinoEcho, HIGH, 7500); // retorna o tempo em microssegundos
-  delay(5);
-  distancia = tempoPulsoEcho / 58;
-
-  if ((distancia == 0) || (distancia > 40)) // caso o sensor leia o valor zero ou maior que 40 cm, ele retorna o valor 40
-    return (40);
-
-  else
-    return (distancia);
+  float res = alpha * atual + (1 - alpha) * anterior;
+  return res;
 }
 
-float filtroE(float y) // filtro para sensor Esquerdo
-{                      // mantem uma certa porcentagem do valor lido anteriormente
-  static float yf;     // static mantem o ultimo valor lido, nâo cria nova variavel
-  yf = alpha * y + (1 - alpha) * yf;
-  return (yf);
+void ler_sensores()
+{
+  long microsec = sensorE.timing();
+  distanciaE = min(MAX_DELTA+3, sensorE.convert(microsec, Ultrasonic::CM)); // filtro(sensorE.convert(microsec, Ultrasonic::CM), distanciaE, 1.0);
+  distanciaE = max(0, distanciaE-3);
+
+  microsec = sensorD.timing();
+  distanciaD = min(MAX_DELTA+3, sensorD.convert(microsec, Ultrasonic::CM)); // filtro(sensorD.convert(microsec, Ultrasonic::CM), distanciaD, 1.0);
+  distanciaD = max(0, distanciaD-3);
+
+  microsec = sensorC.timing();
+  distanciaC = min(MAX_DELTA, sensorC.convert(microsec, Ultrasonic::CM)); // filtro(sensorC.convert(microsec, Ultrasonic::CM), distanciaC, 1.0);
 }
 
-float filtroC(float y)
+void imprimeDistancias()
 {
-  static float yf; // filtro para sensor central
-  yf = alpha * y + (1 - alpha) * yf;
-  return (yf);
-}
-
-float filtroD(float y)
-{
-  static float yf; // filtro para sensor central
-  yf = alpha * y + (1 - alpha) * yf;
-  return (yf);
-}
-
-void imprimeDistancias(void) // função para imprimir distancias no monitor serial
-{
-  Serial.print("Distancia Esquerda: ");
+  Serial.print("Dis Esq: ");
   Serial.print(distanciaE);
-  Serial.print(" cm   ");
-  Serial.print("Distancia Centro: ");
+  Serial.print(" cm  /  ");
+  Serial.print("Dis Cen: ");
   Serial.print(distanciaC);
-  Serial.print(" cm   ");
-  Serial.print("Distancia Direita: ");
+  Serial.print(" cm   /  ");
+  Serial.print("Dis Dir: ");
   Serial.print(distanciaD);
   Serial.println(" cm");
-}
-void reDireita(unsigned char vel, unsigned int tempo) // função para marcha ré para direita
-{
-  analogWrite(ENA, vel + 50); // roda da esquerda gira mias rapido para...
-  analogWrite(ENB, vel - 50); // o robo tender a direita
-  digitalWrite(IN1, 1);
-  digitalWrite(IN2, 0);
-  digitalWrite(IN3, 1);
-  digitalWrite(IN4, 0);
-  delay(tempo);
-}
-void reEsquerda(unsigned char vel, unsigned int tempo) // função para marcha ré para esquerda
-{
-  analogWrite(ENA, vel - 50); // roda da direita gira mias rapido para...
-  analogWrite(ENB, vel + 50); // o robo tender a direita
-  digitalWrite(IN1, 1);
-  digitalWrite(IN2, 0);
-  digitalWrite(IN3, 1);
-  digitalWrite(IN4, 0);
-  delay(tempo);
-}
-void andarFrente(unsigned char vel, unsigned int tempo) // função para andar pra frente
-{
-  analogWrite(ENA, vel);
-  analogWrite(ENB, vel);
-  digitalWrite(IN1, 0);
-  digitalWrite(IN2, 1);
-  digitalWrite(IN3, 0);
-  digitalWrite(IN4, 1);
-  delay(tempo);
-}
-void virarDireita(unsigned char vel, unsigned int tempo) // função para virar direita
-{
-  analogWrite(ENA, vel);
-  analogWrite(ENB, vel);
-  digitalWrite(IN1, 0);
-  digitalWrite(IN2, 1);
-  digitalWrite(IN3, 1);
-  digitalWrite(IN4, 0);
-  delay(tempo);
-}
-void virarEsquerda(unsigned char vel, unsigned int tempo) // função para virar esquerda
-{
-  analogWrite(ENA, vel);
-  analogWrite(ENB, vel);
-  digitalWrite(IN1, 1);
-  digitalWrite(IN2, 0);
-  digitalWrite(IN3, 0);
-  digitalWrite(IN4, 1);
-  delay(tempo);
-}
-void lerSensores(void) // função para ler distancias doas sensores
-{
-  distanciaE = sensorUS(TRIGE, ECHOE);
-  distanciaC = sensorUS(TRIGC, ECHOC);
-  distanciaD = sensorUS(TRIGD, ECHOD);
+
+  bluetooth.print("E: ");
+  bluetooth.println(distanciaE);
+  bluetooth.print("D: ");
+  bluetooth.println(distanciaD);
+  bluetooth.print("C: ");
+  bluetooth.println(distanciaC);
 }
 
-void distanciasFiltradas(void) // aplica o filtro nas dintancias lidas
+float tratamento(float vel)
 {
-  distanciaE = filtroE(distanciaE);
-  distanciaC = filtroC(distanciaC);
-  distanciaD = filtroD(distanciaD);
+  if(vel > 100)
+  {
+    vel = 100;
+  }
+  if(vel < 0)
+  {
+    vel = MIN;
+  }
+  vel = (vel)*MAX/100;
+  return vel;
 }
 
-//___________________________________________________________________________________________________________________________
+void acelera(float vel_esquerda, float vel_direita)
+{
 
-// Função de Configuração
+  int vel_direita_int = ceil(tratamento(vel_direita));
+  int vel_esquerda_int = ceil(tratamento(vel_esquerda));
+
+  analogWrite(IN3, vel);
+  analogWrite(IN4, 0);
+  analogWrite(ENB, vel_direita_int);
+
+  analogWrite(IN1, vel);
+  analogWrite(IN2, 0);
+  analogWrite(ENA, vel_esquerda_int);
+
+  // Serial.print("VD: ");
+  // Serial.println(vel_direita);
+  // Serial.print("VE: ");
+  // Serial.println(vel_esquerda);
+}
+
 void setup()
 {
-  Serial.begin(9600); // Comunicação Serial com o Computador
+  Serial.begin(9600);    // Comunicação Serial com o Computador
+  bluetooth.begin(9600); // Inicializa a comunicação Bluetooth
   pinMode(ENA, OUTPUT);
   pinMode(ENB, OUTPUT);
   pinMode(IN1, OUTPUT); // definição dos pinos entradas e saidas
@@ -151,54 +152,164 @@ void setup()
   pinMode(ECHOE, INPUT);
   pinMode(TRIGC, OUTPUT);
   pinMode(ECHOC, INPUT);
+  // pinMode(BOTAO, INPUT_PULLUP);
+  // acelera(VEL_MAX, VEL_MAX);
+  // Serial.end();
+  // delay(5000);
+  ler_sensores();
+  delay(2000);
+  time = millis();
 }
 
-//___________________________________________________________________________________________________________________________________________________________
+void ajuste_ajustado(float delta)
+{
+  //variável que calcula o quanto uma roda deverá diminuir para ajustar o carrinho
+  float valor_acelera;
+  //curva para esquerda
+  if(delta > 0)
+  {
+    valor_acelera = ceil((-44.5/224.75)*delta*delta + (-180.25/224.75)*delta + 100.0);
+    //valor_acelera = ceil((-60.0/15.5)*delta+100)
+    valor_acelera = max(valor_acelera, 30);
+  }
+  //curva para direita
+  else if(delta < 0)
+  {
+    valor_acelera = ceil((-34.5/224.75)*abs(delta)*abs(delta) -(190.25/224.75)*abs(delta) + 100.0);
+    //valor acelera = ceil((-50.0/15.5)*abs(delta) + 100.0)
+    valor_acelera = max(valor_acelera, 43);
+  }
+  // float valor_acelera = ceil(10.451613*(abs(delta)+MAX)*(abs(delta)+MAX)-2255.54839*(abs(delta)+MAX)+121138.7097);
 
-// Função Principal (loop infinito)
+  valor_acelera = min(valor_acelera, 100);
+
+  //mais a direita
+  if(delta > 0)
+  {
+    digitalWrite(led_amarelo_esquerda, HIGH);
+    digitalWrite(led_azul_direita, LOW);
+    acelera(valor_acelera, 100);
+  }
+
+  //mais a esquerda 
+  else if(delta < 0)
+  {
+    digitalWrite(led_amarelo_esquerda, LOW);
+    digitalWrite(led_azul_direita, HIGH);
+    acelera(100, valor_acelera);
+  }
+  else
+  {
+    digitalWrite(led_amarelo_esquerda, LOW);
+    digitalWrite(led_azul_direita, LOW);
+    acelera(100, 100);
+  }
+}
+
+// VERSÃO FEITA ONTEM DE TARDE 21/11
+void throttle()
+{
+    float a = 2.0/15.0;
+    float b = 2.0/3.0;
+    float valorC = ((a * distanciaC * distanciaC) - (b * distanciaC))/100;
+    unsigned long delta_time = millis() - time;
+    // int delta = distanciaE - distanciaD;
+
+    float step = 0.0;
+    if (delta_time > 50)
+    {
+        time = millis();
+        step = sqrt(speed / 100.0);
+        step += 0.002;
+        step = min(step, 1.0);
+
+        speed = max(0.35, (step * step));
+
+        speed = ceil(min(100, max(0, (speed * 100))));
+
+        MAX = max(0.35, valorC * speed);
+        MAX = min(MAX*100, 100);
+        // analogWrite(IN3, 0);
+        // analogWrite(IN4, 0);
+        // analogWrite(ENB, valorC * speed); // direita
+        // analogWrite(INB, speed);
+
+        // analogWrite(IN1, 0);
+        // analogWrite(IN2, 0);
+        // analogWrite(ENA, max(0.35, valorC * speed));
+        // analogWrite(INA, speed);
+
+        Serial.print("SPEED: ");
+        Serial.println(speed);
+        Serial.print("MAX: ");
+        Serial.println(MAX);
+        
+    }
+}
+
+
+// VERSÃO FEITA 13:00 DE 20/11
+// void throttle()
+// {
+//   float MAX=100;
+//   unsigned long delta_time = millis() - time;
+//   float valorC = ((2/15)*distanciaC*distanciaC - (2/3)*distanciaC)/100;
+//   float step = 0.0;
+//   if (delta_time > 50)
+//   {
+//     time = millis();
+//     step = sqrt(speed / MAX);
+//     step += 0.01;
+//     step = min(step, 1.0);
+
+//     speed = max(0.2, (step * step));
+
+//     speed = ceil(min(MAX, max(0, (speed * MAX))));
+
+//     // analogWrite(IN3, 0);
+//     // analogWrite(IN4, 0);
+//     analogWrite(ENB, speed);
+//     // analogWrite(INB, speed);
+
+//     // analogWrite(IN1, 0);
+//     // analogWrite(IN2, 0);
+//     analogWrite(ENA, speed);
+//     // analogWrite(INA, speed);
+
+//     Serial.print("SPEED: ");
+//     Serial.println(speed);
+//   }
+// }
+
 void loop()
 {
-  lerSensores();         // Lê os Sensores
-  distanciasFiltradas(); // filtra distancias
-  imprimeDistancias();   // imprime as distancias no serial monitor
+  while(true)
+  {  
+    ler_sensores();
+    throttle();
+    float delta = distanciaE - distanciaD;
+    bluetooth.print("Delta: ");
+    bluetooth.println(delta);
+    bluetooth.print("Centro: ");
+    bluetooth.println(distanciaC);
+    ajuste_ajustado(delta);
+    // distanciaC = 30;
+    // ler_sensores();
+    // imprimeDistancias();
+    // throttle();
+    // acelera(100, 100);
+    // delay(2000);
+    // acelera(37.3,100);
+    // acelera(70,70);
+    // acelera(100,30);
+    // delay(500);
+    // while(true)
+    // {
+    //   acelera(100, 100);
+    // }
+  }
 
-  if (distanciaE < 15)
-  { // Regra curvar direita
-    Serial.print("Curva Direita");
-    Serial.println();
-    virarDireita(150, 170);
-  }
-  if (distanciaD < 15)
-  { // Regra para curvar a esquerda
-    Serial.print("Curva Esquerda");
-    Serial.println();
-    virarEsquerda(150, 170);
-  }
-  if (distanciaC > 20)
-  {
-    Serial.print("Em Frente");
-    Serial.println();
-    andarFrente(254, 50);
-  }
-  else if (distanciaC > 13)
-  {
-    Serial.print("Em Frente mais devagar");
-    Serial.println();
-    andarFrente(150, 50);
-  }
-  if (distanciaC < 13) // Regra para marcha ré
-  {
-    if (distanciaD > distanciaE)
-    {
-      Serial.print("Ré Esquerda");
-      Serial.println();
-      reEsquerda(200, 150);
-    }
-    else
-    {
-      Serial.print("Ré Direita");
-      Serial.println();
-      reDireita(200, 150);
-    }
-  }
+
+  // throttle();
+  // ajuste_ajustado();
 }
