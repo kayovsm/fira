@@ -7,14 +7,14 @@
 // #define BTN0 A0 // Botão 0
 // #define BTN1 A1 // Botão 1
 
-#define TRIGE A2 // Pino Trig Sensor Esquerdo
-#define ECHOE A3 // Pino Echo Sensor Esquerdo
+#define TRIGE A4 // Pino Trig Sensor Esquerdo
+#define ECHOE A5 // Pino Echo Sensor Esquerdo
 
-#define TRIGC A4 // Pino Trig Sensor Centro
-#define ECHOC A5 // Pino Echo Sensor Centro
+#define TRIGC A0 // Pino Trig Sensor Centro
+#define ECHOC A1 // Pino Echo Sensor Centro
 
-#define TRIGD A0 // Pino Trig Sensor Direito
-#define ECHOD A1 // Pino Echo Sensor Direito
+#define TRIGD A2 // Pino Trig Sensor Direito
+#define ECHOD A3 // Pino Echo Sensor Direito
 
 #define ENA 5  // ENA PWM Motor Esquerdo
 #define ENB 6  // ENB PWM Motor Direito
@@ -29,19 +29,21 @@
 
 SoftwareSerial bluetooth(8, 9); // rx, tx amarelo e verde respectivamente
 
-Ultrasonic sensorD(A0, A1);
-Ultrasonic sensorE(A2, A3);
-Ultrasonic sensorC(A4, A5);
+Ultrasonic sensorD(TRIGD, ECHOD);
+Ultrasonic sensorE(TRIGE, ECHOE);
+Ultrasonic sensorC(TRIGC, ECHOC);
 
 double OutputC;
 double OutputE;
 double OutputD;
+
 double Outputdelta;
-double SetpointCentral = 20;
+
+double SetpointCentral = 20; 
 double SetpointLaterais = 6.75;
 
-double kpCentral = 5.0, kiCentral = 3.0, kdCentral = 0;
-double kp = 30, ki = 10, kd = 1;
+double kpCentral = 5.0, kiCentral = 3.5, kdCentral = 2;
+double kpLateral = 1, kiLateral = 0, kdLateral = 2;
 
 int vel = 100;
 
@@ -49,8 +51,7 @@ int vel = 100;
 
 float MAX_DELTA = 28.0;
 
-float MAX_VOLTAGE_M1 = 95.0;
-float MAX_VOLTAGE_M2 = 100.0;
+float MAX_VOLTAGE = 80.0;
 float MIN_PERCENT = 35.0;
 
 // Variáveis Globais
@@ -61,9 +62,9 @@ double distanciaD; // distancia para leitura do sensor direita
 double delta;
 
 PID PIDc(&distanciaC, &OutputC, &SetpointCentral, kpCentral, kiCentral, kdCentral, REVERSE);
-PID PIDd(&distanciaD, &OutputD, &SetpointLaterais, kp, ki, kd, DIRECT);
-PID PIDe(&distanciaE, &OutputE, &SetpointLaterais, kp, ki, kd, DIRECT);
-PID PIDdelta(&delta, &Outputdelta, &SetpointLaterais, kp, ki, kd, DIRECT);
+PID PIDd(&distanciaD, &OutputD, &SetpointLaterais, kpLateral, kiLateral, kdLateral, DIRECT);
+PID PIDe(&distanciaE, &OutputE, &SetpointLaterais, kpLateral, kiLateral, kdLateral, DIRECT);
+PID PIDdelta(&delta, &Outputdelta, &SetpointLaterais, kpLateral, kiLateral, kdLateral, DIRECT);
 
 void imprimeDistancias()
 {
@@ -105,14 +106,13 @@ void acelera(float vel_esquerda, float vel_direita)
 
 void ler_sensores()
 {
-  long microsec;
-  // long microsec = sensorE.timing();
-  // distanciaE = min(MAX_DELTA + 2, sensorE.convert(microsec, Ultrasonic::CM)); // filtro(sensorE.convert(microsec, Ultrasonic::CM), distanciaE, 1.0);
-  // distanciaE = max(0, distanciaE - 2);
+  long microsec = sensorE.timing();
+  distanciaE = min(MAX_DELTA + 2, sensorE.convert(microsec, Ultrasonic::CM)); // filtro(sensorE.convert(microsec, Ultrasonic::CM), distanciaE, 1.0);
+  distanciaE = max(0, distanciaE - 2);
 
-  // microsec = sensorD.timing();
-  // distanciaD = min(MAX_DELTA + 1.5, sensorD.convert(microsec, Ultrasonic::CM)); // filtro(sensorD.convert(microsec, Ultrasonic::CM), distanciaD, 1.0);
-  // distanciaD = max(0, distanciaD - 1.5);
+  microsec = sensorD.timing();
+  distanciaD = min(MAX_DELTA + 1.5, sensorD.convert(microsec, Ultrasonic::CM)); // filtro(sensorD.convert(microsec, Ultrasonic::CM), distanciaD, 1.0);
+  distanciaD = max(0, distanciaD - 1.5);
 
   microsec = sensorC.timing();
   distanciaC = min(40, sensorC.convert(microsec, Ultrasonic::CM)); // filtro(sensorC.convert(microsec, Ultrasonic::CM), distanciaC, 1.0);
@@ -123,19 +123,30 @@ void ler_sensores()
   // long distanciaD = getSmoothedDistanceRight();
   // long distanciaE = getSmoothedDistanceLeft();
 
-  // delta = distanciaE - distanciaD;
+  delta = distanciaE - distanciaD;
 }
 
 void ajuste(float referencia, float valor_acelera)
 {
+
+  Serial.print("Valor acelera: ");
+  Serial.println(valor_acelera);
+
   valor_acelera *= OutputC/100;
+  
+  Serial.print("Valor acelera POS CALCULO: ");
+  Serial.println(valor_acelera);
+  
   // mais a direita
+  Serial.print("Referencia: ");
+  Serial.println(referencia);
+
   if (referencia > 0)
   {
     acelera(valor_acelera, 100);
   }
   // mais a esquerda
-  else if (referencia < 0)
+  else if (referencia > 0)
   {
     acelera(100, valor_acelera);
   }
@@ -189,15 +200,15 @@ void setup()
   PIDdelta.SetMode(AUTOMATIC);
 
   // Adjust PID values
-  PIDe.SetTunings(kp, ki, kd);
-  PIDd.SetTunings(kp, ki, kd);
+  PIDe.SetTunings(kpLateral, kiLateral, kdLateral);
+  PIDd.SetTunings(kpLateral, kiLateral, kdLateral);
   PIDc.SetTunings(kpCentral, kiCentral, kdCentral);
-  PIDdelta.SetTunings(kp, ki, kd);
+  PIDdelta.SetTunings(kpLateral, kiLateral, kdLateral);
 
-  PIDc.SetOutputLimits(MIN_PERCENT, MAX_VOLTAGE_M1);
-  PIDe.SetOutputLimits(0, MAX_VOLTAGE_M1);
-  PIDd.SetOutputLimits(0, MAX_VOLTAGE_M1);
-  PIDdelta.SetOutputLimits(0, MAX_VOLTAGE_M1);
+  PIDc.SetOutputLimits(MIN_PERCENT, MAX_VOLTAGE);
+  PIDe.SetOutputLimits(MIN_PERCENT, MAX_VOLTAGE);
+  PIDd.SetOutputLimits(MIN_PERCENT, MAX_VOLTAGE);
+  PIDdelta.SetOutputLimits(MIN_PERCENT, MAX_VOLTAGE);
 
   ler_sensores();
   delay(2000);
@@ -210,12 +221,16 @@ void loop()
     ler_sensores();
     imprimeDistancias();
     
+    Serial.print("Output Central: ");
+    Serial.println(OutputC);
+    
     PIDc.Compute();
-    // PIDe.Compute();
-    // PIDd.Compute();
-    // PIDdelta.Compute();
-    ajuste(0,100);
+    PIDe.Compute();
+    PIDd.Compute();
+    PIDdelta.Compute();
+    // ajuste(0,100);
     // acelera(100,100);
-    // move();
+    move();
+    delay(2000);
   }
 }
