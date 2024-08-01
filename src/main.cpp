@@ -4,9 +4,6 @@
 #include <Ultrasonic.h>
 #include <PID_v1.h>
 
-// #define BTN0 A0 // Botão 0
-// #define BTN1 A1 // Botão 1
-
 #define TRIGE A4 // Pino Trig Sensor Esquerdo
 #define ECHOE A5 // Pino Echo Sensor Esquerdo
 
@@ -24,8 +21,6 @@
 
 #define IN3 7 // DIR Motor Direito
 #define IN4 8 // DIR Motor Direito
-
-// porta botao 4
 
 SoftwareSerial bluetooth(8, 9); // rx, tx amarelo e verde respectivamente
 
@@ -46,8 +41,6 @@ double kpCentral = 5.0, kiCentral = 3.5, kdCentral = 2;
 double kpLateral = 1, kiLateral = 0, kdLateral = 2;
 
 int vel = 100;
-
-// unsigned long time;
 
 float MAX_DELTA = 28.0;
 
@@ -92,7 +85,7 @@ void imprimeDistancias()
 void acelera(float vel_esquerda, float vel_direita)
 {
 
-  int vel_direita_int = ceil(vel_direita*0.95);
+  int vel_direita_int = ceil(vel_direita);
   int vel_esquerda_int = ceil(vel_esquerda);
 
   digitalWrite(IN3, HIGH);
@@ -116,12 +109,6 @@ void ler_sensores()
 
   microsec = sensorC.timing();
   distanciaC = min(40, sensorC.convert(microsec, Ultrasonic::CM)); // filtro(sensorC.convert(microsec, Ultrasonic::CM), distanciaC, 1.0);
-
-  // updateHistory(distanciaC, distanciaD, distanciaE);
-
-  // long distanciaC = getSmoothedDistanceFront();
-  // long distanciaD = getSmoothedDistanceRight();
-  // long distanciaE = getSmoothedDistanceLeft();
 
   delta = distanciaE - distanciaD;
 }
