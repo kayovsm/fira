@@ -4,14 +4,14 @@
 #include <Ultrasonic.h>
 #include <PID_v1.h>
 
-#define TRIGE A4  // Pino Trig Sensor Esquerdo
-#define ECHOE A5  // Pino Echo Sensor Esquerdo
+#define TRIGD A4  // Pino Trig Sensor Direita
+#define ECHOD A5  // Pino Echo Sensor Direita
 
 #define TRIGC A0  // Pino Trig Sensor Centro
 #define ECHOC A1  // Pino Echo Sensor Centro
 
-#define TRIGD A2  // Pino Trig Sensor Direito
-#define ECHOD A3  // Pino Echo Sensor Direito
+#define TRIGE A2  // Pino Trig Sensor Esquerda
+#define ECHOE A3  // Pino Echo Sensor Esquerda
 
 #define ENA 5  // ENA PWM Motor Esquerdo
 #define ENB 6  // ENB PWM Motor Direito
