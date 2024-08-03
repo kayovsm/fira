@@ -39,26 +39,29 @@ double SetpointLaterais = 6.75;
 
 //
 double kpCentral = 5.0, kiCentral = 3.5, kdCentral = 2.0;
-double kpLateral = 9.0, kiLateral = 0.0, kdLateral = 0.0;
+double kpLateral = 14.0, kiLateral = 0.0, kdLateral = 0.0;
 
 int vel = 100;
 
 float MAX_DELTA = 28.0;
 
-float MAX_VOLTAGE = 80.0;
-float MIN_PERCENT = 35.0;
+float MAX_VOLTAGE = 70.0;
+float MIN_PERCENT = 0.0;
 
 // Variáveis Globais
 double distanciaC;
 double distanciaE;  // distancia para leitura do sensor esquerdodouble distanciaC; // distancia para leitura do sensor central
 double distanciaD;  // distancia para leitura do sensor direita
 
+double distanciaC_abs;
+double distanciaE_abs;  // distancia para leitura do sensor esquerdodouble distanciaC; // distancia para leitura do sensor central
+double distanciaD_abs;  // distancia para leitura do sensor direita
 double delta;
 double delta_abs;
 
 PID PIDc(&distanciaC, &OutputC, &SetpointCentral, kpCentral, kiCentral, kdCentral, REVERSE);
-PID PIDd(&distanciaD, &OutputD, &SetpointLaterais, kpLateral, kiLateral, kdLateral, DIRECT);
-PID PIDe(&distanciaE, &OutputE, &SetpointLaterais, kpLateral, kiLateral, kdLateral, DIRECT);
+PID PIDd(&distanciaD_abs, &OutputD, &SetpointLaterais, kpLateral, kiLateral, kdLateral, DIRECT);
+PID PIDe(&distanciaE_abs, &OutputE, &SetpointLaterais, kpLateral, kiLateral, kdLateral, DIRECT);
 PID PIDdelta(&delta_abs, &Outputdelta, &SetpointLaterais, kpLateral, kiLateral, kdLateral, DIRECT);
 
 void imprimeDistancias() {
@@ -104,6 +107,52 @@ void acelera(float vel_esquerda, float vel_direita) {
   analogWrite(ENA, vel_direita_int);
 }
 
+const int windowSize = 10;
+
+long historyFront[windowSize] = {0};
+long historyRight[windowSize] = {0};
+long historyLeft[windowSize] = {0};
+
+int index = 0;
+
+const int threshold = 28; // Distância limite para considerar um obstáculo (em cm)
+
+int occupancyHistogram[3]; // 0: esquerda, 1: frente, 2: direita
+int polarHistogram[3];     // 0: esquerda, 1: frente, 2: direita
+
+void updateHistory(long distanceFront, long distanceRight, long distanceLeft)
+{
+  historyFront[index] = distanceFront;
+  historyRight[index] = distanceRight;
+  historyLeft[index] = distanceLeft;
+  index = (index + 1) % windowSize;
+}
+
+long getAverage(long history[])
+{
+  long sum = 0;
+  for (int i = 0; i < index; i++)
+  {
+    sum += history[i];
+  }
+  return sum / index;
+}
+
+long getSmoothedDistanceFront()
+{
+  return getAverage(historyFront);
+}
+
+long getSmoothedDistanceRight()
+{
+  return getAverage(historyRight);
+}
+
+long getSmoothedDistanceLeft()
+{
+  return getAverage(historyLeft);
+}
+
 void ler_sensores() {
   long microsec = sensorE.timing();
   distanciaE = min(MAX_DELTA + 1.6, sensorE.convert(microsec, Ultrasonic::CM));  // filtro(sensorE.convert(microsec, Ultrasonic::CM), distanciaE, 1.0);
@@ -115,6 +164,12 @@ void ler_sensores() {
 
   microsec = sensorC.timing();
   distanciaC = min(40, sensorC.convert(microsec, Ultrasonic::CM));  // filtro(sensorC.convert(microsec, Ultrasonic::CM), distanciaC, 1.0);
+
+  // updateHistory(distanciaC, distanciaD, distanciaE);
+
+  // distanciaC = getSmoothedDistanceFront();
+  // distanciaD = getSmoothedDistanceRight();
+  // distanciaE = getSmoothedDistanceLeft();
 
   delta = distanciaE - distanciaD;
   delta_abs = abs(delta);
@@ -154,9 +209,11 @@ void move() {
     // acelera(0,0);
     // delay(1000);
     if (distanciaD < distanciaE) {
-      ajuste(6.75 - distanciaD, OutputD);
+      distanciaD = 6.75 - distanciaD;
+      ajuste(distanciaD, OutputD);
     } else {
-      ajuste(distanciaE - 6.75, OutputE);
+      distanciaE = distanciaE - 6.75;
+      ajuste(distanciaE, OutputE);
     }
   }
 }
@@ -203,12 +260,21 @@ void loop() {
     ler_sensores();
     imprimeDistancias();
 
+    distanciaD_abs = abs(distanciaD - 6.75);
+    distanciaE_abs = abs(distanciaE - 6.75);
+    PIDc.Compute();
     Serial.print("Output Central: ");
     Serial.println(OutputC);
-
-    PIDc.Compute();
+    Serial.print("Distancia Esquerda Absoluta: ");
+    Serial.println(distanciaE_abs);
     PIDe.Compute();
+    Serial.print("Output Esquerda: ");
+    Serial.println(OutputE);
+    Serial.print("Distancia Direita Absoluta: ");
+    Serial.println(distanciaD_abs);
     PIDd.Compute();
+    Serial.print("Output Direita: ");
+    Serial.println(OutputD);
     PIDdelta.Compute();
     // ajuste(0,100);
     // acelera(100,100);
