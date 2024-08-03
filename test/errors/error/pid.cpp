@@ -1,6 +1,13 @@
 #include <PID_v1.h>
-#include "sensors.cpp"
-#include "utils/pid/pid_variables.h"
+#include <math.h>
+#include "utils/pid.h"
+#include "utils/sensors.h"
+#include <Arduino.h>
+
+PID PIDc(&distanciaC, &OutputC, &SetpointCentral, kpCentral, kiCentral, kdCentral, REVERSE);
+PID PIDd(&distanciaD_abs, &OutputD, &SetpointLaterais, kpLateral, kiLateral, kdLateral, DIRECT);
+PID PIDe(&distanciaE_abs, &OutputE, &SetpointLaterais, kpLateral, kiLateral, kdLateral, DIRECT);
+PID PIDdelta(&delta_abs, &Outputdelta, &SetpointLaterais, kpLateral, kiLateral, kdLateral, DIRECT);
 
 // Função para configurar os controladores PID
 void setupPID() {
@@ -26,8 +33,8 @@ void setupPID() {
 // Função para calcular os valores dos controladores PID
 void computePID() {
   // Calcula as distâncias absolutas
-  distanciaD_abs = abs(distanciaD - 6.75); // Calcula a distância absoluta para o lado direito
-  distanciaE_abs = abs(distanciaE - 6.75); // Calcula a distância absoluta para o lado esquerdo
+  distanciaD_abs = fabs(distanciaD - 6.75); // Calcula a distância absoluta para o lado direito
+  distanciaE_abs = fabs(distanciaE - 6.75); // Calcula a distância absoluta para o lado esquerdo
 
   // Calcula o valor do controlador PID central
   PIDc.Compute(); // Calcula o valor de saída do controlador PIDc
@@ -52,36 +59,7 @@ void computePID() {
   PIDdelta.Compute();
 }
 
-// Função para calcular os valores dos controladores PID
-void computeAJUSTE() {
-  // Calcula as distâncias absolutas
-  distanciaD_abs = abs(distanciaD - 6.75); // Calcula a distância absoluta para o lado direito
-  distanciaE_abs = abs(distanciaE - 6.75); // Calcula a distância absoluta para o lado esquerdo
-
-  float valor_acelera = ceil((-50.0/15.5)*abs(delta_abs) + 100.0);
-
-
-  
-
-  // Calcula o valor do controlador PID central
-  PIDc.Compute(); // Calcula o valor de saída do controlador PIDc
-  Serial.print("Output Central: ");
-  Serial.println(OutputC);
-
-  // Calcula o valor do controlador PID esquerdo
-  Serial.print("Distancia Esquerda Absoluta: ");
-  Serial.println(distanciaE_abs);
-  PIDe.Compute();
-  Serial.print("Output Esquerda: ");
-  Serial.println(OutputE);
-
-  // Calcula o valor do controlador PID direito
-  Serial.print("Distancia Direita Absoluta: ");
-  Serial.println(distanciaD_abs);
-  PIDd.Compute();
-  Serial.print("Output Direita: ");
-  Serial.println(OutputD);
-
-  // Calcula o valor do controlador PID delta
-  PIDdelta.Compute();
+void funcoes_math(double x, double *output)
+{
+  *output = cos((x) * acos(45/70)/7.1)*70;
 }

@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "pid.cpp"
-#include "ajuste.cpp"
+#include "sensors.cpp"
 
 // Definição dos pinos para controle dos motores
 #define ENA 5  // Pino PWM para o motor esquerdo
@@ -18,6 +18,7 @@ void setupPins() {
   pinMode(IN2, OUTPUT);  // Configura o pino IN2 como saída
   pinMode(IN3, OUTPUT);  // Configura o pino IN3 como saída
   pinMode(IN4, OUTPUT);  // Configura o pino IN4 como saída
+
   pinMode(TRIGD, OUTPUT);  // Configura o pino TRIGD como saída
   pinMode(ECHOD, INPUT);   // Configura o pino ECHOD como entrada
   pinMode(TRIGE, OUTPUT);  // Configura o pino TRIGE como saída
@@ -77,7 +78,7 @@ void ajuste(float referencia, float valor_acelera) {
   }
 }
 
-// Função para mover o robô com base nas leituras dos sensores
+// Função para mover o robô com base nas leituras dos sensoresc
 // 0 -> utiliza PID
 // 1 -> utiliza funções calculadas manualmente
 void move(int use = 0) {
