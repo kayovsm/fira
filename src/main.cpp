@@ -4,8 +4,8 @@
 #include <Ultrasonic.h>
 #include <PID_v1.h>
 
-#define TRIGD A4 // Pino Trig Sensor Direita
-#define ECHOD A5 // Pino Echo Sensor Direita
+#define TRIGD 9  // Pino Trig Sensor Direita
+#define ECHOD A4 // Pino Echo Sensor Direita
 
 #define TRIGC A0 // Pino Trig Sensor Centro
 #define ECHOC A1 // Pino Echo Sensor Centro
@@ -22,11 +22,18 @@
 #define IN3 7 // DIR Motor Direito
 #define IN4 8 // DIR Motor Direito
 
+#define POTK A5 // Pino potenciômetro
+
 SoftwareSerial bluetooth(8, 9); // rx, tx amarelo e verde respectivamente
 
 Ultrasonic sensorD(TRIGD, ECHOD);
 Ultrasonic sensorE(TRIGE, ECHOE);
 Ultrasonic sensorC(TRIGC, ECHOC);
+
+double DIS_MAX = 7.1;
+double DIS_MIN = 0.1;
+float MAX_VOLTAGE = 70.0;
+float MIN_VOLTAGE = 55.0;
 
 double OutputC;
 double OutputE;
@@ -35,18 +42,16 @@ double OutputD;
 double Outputdelta;
 
 double SetpointCentral = 20;
-double SetpointLaterais = 7.1;
+double SetpointLaterais = DIS_MAX;
 
-//
+// constantes para o PID
 double kpCentral = 5.0, kiCentral = 3.5, kdCentral = 2.0;
-double kpLateral = 4.0, kiLateral = 100000000.0, kdLateral = 0.0;
-
-int vel = 100;
+double kpLateral = 0.7222941748096342, kiLateral = 1832.1658871947106, kdLateral = 916.0829435973553;
+//double kpLateral = 8.0, kiLateral = 0.0, kdLateral = 0.0;
 
 float MAX_DELTA = 28.0;
 
-float MAX_VOLTAGE = 70.0;
-float MIN_PERCENT = 45.0;
+
 
 // Variáveis Globais
 double distanciaC;
@@ -56,53 +61,49 @@ double distanciaD; // distancia para leitura do sensor direita
 double distanciaC_abs;
 double distanciaE_abs; // distancia para leitura do sensor esquerdodouble distanciaC; // distancia para leitura do sensor central
 double distanciaD_abs; // distancia para leitura do sensor direita
+
 double delta;
 double delta_abs;
 
+// int qnt_leituras = 0;
+
 PID PIDc(&distanciaC, &OutputC, &SetpointCentral, kpCentral, kiCentral, kdCentral, REVERSE);
-PID PIDd(&distanciaD_abs, &OutputD, &SetpointLaterais, kpLateral, kiLateral, kdLateral, DIRECT);
-PID PIDe(&distanciaE_abs, &OutputE, &SetpointLaterais, kpLateral, kiLateral, kdLateral, DIRECT);
-PID PIDdelta(&delta_abs, &Outputdelta, &SetpointLaterais, kpLateral, kiLateral, kdLateral, DIRECT);
+PID PIDd(&distanciaD_abs, &OutputD, &SetpointLaterais, kpLateral, kiLateral, kdLateral, REVERSE);
+PID PIDe(&distanciaE_abs, &OutputE, &SetpointLaterais, kpLateral, kiLateral, kdLateral, REVERSE);
+PID PIDdelta(&delta_abs, &Outputdelta, &SetpointLaterais, kpLateral, kiLateral, kdLateral, REVERSE);
 
 #define N 5 // número de pontos da média móvel
 
-// unsigned pulseEcho_Center = 0, pulseEcho_Left = 0, pulseEcho_Right = 0;    // armazena pulso de saída do sensor
-// unsigned pulseInput_Center = 0, pulseInput_Left = 0, pulseInput_Right = 0; // armazena pulso filtrado
 double values_center[N], values_left[N], values_right[N]; // vetor para média móvel
 
-void moving_average()  // retorna a média móvel de acordo com a resolução
-                       // designada
+void moving_average() // retorna a média móvel de acordo com a resolução designada
 {
-  int i;               // variável para iterações
-  double adder_c = 0;  // variável para somatório
-  double adder_d = 0;  // variável para somatório
-  double adder_e = 0;  // variável para somatório
+  int i;              // variável para iterações
+  double adder_c = 0; // variável para somatório
+  double adder_d = 0; // variável para somatório
+  double adder_e = 0; // variável para somatório
 
-  for (i = N - 1; i > 0;
-       i--)  // desloca todo vetor descartando o elemento mais antigo
+  for (i = N - 1; i > 0; i--) // desloca todo vetor descartando o elemento mais antigo
   {
     values_center[i] = values_center[i - 1];
     values_left[i] = values_left[i - 1];
     values_right[i] = values_right[i - 1];
   }
 
-  values_center[0] =
-      distanciaC;  // o primeiro elemento do vetor recebe o valor do pulso
-  values_left[0] =
-      distanciaE;  // o primeiro elemento do vetor recebe o valor do pulso
-  values_right[0] =
-      distanciaD;  // o primeiro elemento do vetor recebe o valor do pulso
+  values_center[0] = distanciaC; // o primeiro elemento do vetor recebe o valor do pulso
+  values_left[0] = distanciaE;   // o primeiro elemento do vetor recebe o valor do pulso
+  values_right[0] = distanciaD;  // o primeiro elemento do vetor recebe o valor do pulso
 
-  for (i = 0; i < N; i++)  // faz a somatória
+  for (i = 0; i < N; i++) // faz a somatória
   {
     adder_c = adder_c + values_center[i];
     adder_e = adder_e + values_left[i];
     adder_d = adder_d + values_right[i];
   }
 
-  distanciaC = adder_c / N;  // retorna a média
-  distanciaE = adder_e / N;  // retorna a média
-  distanciaD = adder_d / N;  // retorna a média
+  distanciaC = adder_c / N; // retorna a média
+  distanciaE = adder_e / N; // retorna a média
+  distanciaD = adder_d / N; // retorna a média
 }
 
 void imprimeDistancias()
@@ -149,33 +150,23 @@ void acelera(float vel_esquerda, float vel_direita)
   analogWrite(ENA, vel_direita_int);
 }
 
-void ler_sensores(int first = 0) {
+void ler_sensores(int first = 0)
+{
   long microsec = sensorE.timing();
-  distanciaE =
-      min(MAX_DELTA + 1.6,
-          sensorE.convert(
-              microsec, Ultrasonic::CM));  // filtro(sensorE.convert(microsec,
-                                           // Ultrasonic::CM), distanciaE, 1.0);
+  distanciaE = min(MAX_DELTA + 1.6, sensorE.convert(microsec, Ultrasonic::CM)); // filtro(sensorE.convert(microsec, Ultrasonic::CM), distanciaE, 1.0);
   distanciaE = max(0, distanciaE - 1.6);
 
   microsec = sensorD.timing();
-  distanciaD =
-      min(MAX_DELTA + 1.5,
-          sensorD.convert(
-              microsec, Ultrasonic::CM));  // filtro(sensorD.convert(microsec,
-                                           // Ultrasonic::CM), distanciaD, 1.0);
+  distanciaD = min(MAX_DELTA + 1.5, sensorD.convert(microsec, Ultrasonic::CM)); // filtro(sensorD.convert(microsec, Ultrasonic::CM), distanciaD, 1.0);
   distanciaD = max(0, distanciaD - 1.5);
 
   microsec = sensorC.timing();
-  distanciaC = min(
-      40, sensorC.convert(
-              microsec, Ultrasonic::CM));  // filtro(sensorC.convert(microsec,
-                                           // Ultrasonic::CM), distanciaC, 1.0);
+  distanciaC = min(40, sensorC.convert(microsec, Ultrasonic::CM)); // filtro(sensorC.convert(microsec, Ultrasonic::CM), distanciaC, 1.0);
 
-  imprimeDistancias();
-
-  // if (first) {
-  //   for (int i = 0; i < N; i++) {
+  // if (first)
+  // {
+  //   for (int i = 0; i < N; i++)
+  //   {
   //     values_center[i] = distanciaC;
   //     values_left[i] = distanciaE;
   //     values_right[i] = distanciaD;
@@ -183,25 +174,27 @@ void ler_sensores(int first = 0) {
   // }
 
   // moving_average();
-
+ 
   delta = distanciaE - distanciaD;
   delta_abs = abs(delta);
+
+  // qnt_leituras++;
 }
 
 void ajuste(float referencia, float valor_acelera)
 {
 
-  Serial.print("Valor acelera: ");
-  Serial.println(valor_acelera);
+  // Serial.print("Valor acelera: ");
+  // Serial.println(valor_acelera);
 
-  valor_acelera *= OutputC / MAX_VOLTAGE;
+  // valor_acelera *= OutputC / MAX_VOLTAGE;
 
-  Serial.print("Valor acelera POS CALCULO: ");
-  Serial.println(valor_acelera);
+  // Serial.print("Valor acelera POS CALCULO: ");
+  // Serial.println(valor_acelera);
 
   // mais a direita
-  Serial.print("Referencia: ");
-  Serial.println(referencia);
+  // Serial.print("Referencia: ");
+  // Serial.println(referencia);
 
   if (referencia > 0)
   {
@@ -218,38 +211,48 @@ void ajuste(float referencia, float valor_acelera)
   }
 }
 
-void funcoes_math(double x, double *output)
+void move()
 {
-  double value;
-  value = cos((x) * acos(45/70)/7.1)*70;
-  value = min(value, MAX_VOLTAGE);
-  value = max(value, MIN_PERCENT);
-  *output = value;
-}
-
-void move(int use) {
-  // Verifica se o delta está dentro de um intervalo aceitável
-  if (delta < 15 && delta > -15) {
-    //caso use seja igual a 1, o robô irá calcular a velocidade dos motores com base na função senoidal
-    if(use)
+  // delta -15 MIN   OU 15 MAX
+  if (delta < 15 && delta > -15)
+  {
+    ajuste(delta, Outputdelta);
+  }
+  else
+  {
+  // define o sensor de referencia
+    if (distanciaD < distanciaE)
     {
-      funcoes_math(delta_abs, &Outputdelta);
-      funcoes_math(distanciaE_abs, &OutputE);
-      funcoes_math(distanciaD_abs, &OutputD);
+      distanciaD = 6.75 - distanciaD;
+      ajuste(distanciaD, OutputD);
     }
-    ajuste(delta, Outputdelta);  // Ajusta a velocidade dos motores com base no delta
-  } else {
-    // Ajusta a velocidade dos motores com base nas distâncias dos sensores
-    if (distanciaD < distanciaE) {
-      distanciaD = 6.75 - distanciaD;  // Calcula a nova distância para o motor direito
-      ajuste(distanciaD, OutputD);  // Ajusta a velocidade do motor direito
-    } else {
-      distanciaE = distanciaE - 6.75;  // Calcula a nova distância para o motor esquerdo
-      ajuste(distanciaE, OutputE);  // Ajusta a velocidade do motor esquerdo
+    else
+    {
+      distanciaE = distanciaE - 6.75;
+      ajuste(distanciaE, OutputE);
     }
   }
 }
 
+double output_func_math(int choice, double referencia)
+{
+  double c;
+  double a;
+  switch (choice)
+  {
+  //cosseno
+  case 0:
+    return cos(referencia * acos(MIN_VOLTAGE / MAX_VOLTAGE) / DIS_MAX) * MAX_VOLTAGE;
+    //quadratica
+  case 1:
+    c = MAX_VOLTAGE;
+    a = (MIN_VOLTAGE - MAX_VOLTAGE) / DIS_MAX * DIS_MAX;
+  
+    return referencia * referencia * a + c;
+  default:
+    return -1;
+  }
+}
 
 void setup()
 {
@@ -267,6 +270,7 @@ void setup()
   pinMode(ECHOE, INPUT);
   pinMode(TRIGC, OUTPUT);
   pinMode(ECHOC, INPUT);
+  pinMode(POTK, INPUT);
 
   // Turn the PID on
   PIDe.SetMode(AUTOMATIC);
@@ -280,41 +284,72 @@ void setup()
   PIDc.SetTunings(kpCentral, kiCentral, kdCentral);
   PIDdelta.SetTunings(kpLateral, kiLateral, kdLateral);
 
-  PIDc.SetOutputLimits(MIN_PERCENT, MAX_VOLTAGE);
-  PIDe.SetOutputLimits(MIN_PERCENT, MAX_VOLTAGE);
-  PIDd.SetOutputLimits(MIN_PERCENT, MAX_VOLTAGE);
-  PIDdelta.SetOutputLimits(MIN_PERCENT, MAX_VOLTAGE);
+  PIDc.SetOutputLimits(MIN_VOLTAGE, MAX_VOLTAGE);
+  PIDe.SetOutputLimits(MIN_VOLTAGE, MAX_VOLTAGE);
+  PIDd.SetOutputLimits(MIN_VOLTAGE, MAX_VOLTAGE);
+  PIDdelta.SetOutputLimits(MIN_VOLTAGE, MAX_VOLTAGE);
 
   ler_sensores(1);
-  delay(2000);
+
+  // delay(2000);
 }
 
 void loop()
 {
+  // unsigned long now;
+
   while (true)
   {
+    // now = millis();
     ler_sensores();
-    imprimeDistancias();
+    // imprimeDistancias();
+    // Serial.print("Quantidade de Leituras: ");
+    // Serial.println(qnt_leituras);
 
     distanciaD_abs = abs(distanciaD - 6.75);
     distanciaE_abs = abs(distanciaE - 6.75);
+
+    // // Kp vai de 0 a 30
+    // kpLateral = (analogRead(POTK) / 1023.0) * 30.0;
+    // // // Ki vai de 2 a 0
+    // // kiLateral = (1.0 - analogRead(POTK) / 1023.0) * 2.0;
+    // // // Kd vai de 0 a 0.5
+    // // kdLateral = analogRead(POTK) / 1023.0 * 0.5;
+
+    // Serial.print("kpLateral: ");
+    // Serial.println(kpLateral);
+
     PIDc.Compute();
-    Serial.print("Output Central: ");
-    Serial.println(OutputC);
-    Serial.print("Distancia Esquerda Absoluta: ");
-    Serial.println(distanciaE_abs);
+    // Serial.print("Output Central: ");
+    // Serial.println(OutputC);
+
+    // Serial.print("Distancia Esquerda Absoluta: ");
+    // Serial.println(distanciaE_abs);
     PIDe.Compute();
-    Serial.print("Output Esquerda: ");
-    Serial.println(OutputE);
-    Serial.print("Distancia Direita Absoluta: ");
-    Serial.println(distanciaD_abs);
+    // Serial.print("Output Esquerda: ");
+    // Serial.println(OutputE);
+
+    // Serial.print("Distancia Direita Absoluta: ");
+    // Serial.println(distanciaD_abs);
     PIDd.Compute();
-    Serial.print("Output Direita: ");
-    Serial.println(OutputD);
+    // Serial.print("Output Direita: ");
+    // Serial.println(OutputD);
+
     PIDdelta.Compute();
-    // ajuste(0,100);
+
+    // Serial.print("Time: ");
+    // Serial.println(now);
+
+    // Serial.print("Input: ");
+    // Serial.println(delta);
+
+    // Serial.print("Output: ");
+    // Serial.println(Outputdelta);
+
+    Outputdelta = output_func_math(1, delta_abs);
+    ajuste(delta,Outputdelta);
     // acelera(100,100);
-    move(1);
+    // move();
     // delay(2000);
   }
 }
