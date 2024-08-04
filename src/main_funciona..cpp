@@ -118,7 +118,7 @@ void acelera(float vel_esquerda, float vel_direita)
 
 void setup()
 {
-  Serial.begin(9600);    // Comunicação Serial com o Computador
+  Serial.begin(9600); // Comunicação Serial com o Computador
   pinMode(ENA, OUTPUT);
   pinMode(ENB, OUTPUT);
   pinMode(IN1, OUTPUT); // definição dos pinos entradas e saidas
@@ -133,20 +133,21 @@ void setup()
   pinMode(ECHOC, INPUT);
   pinMode(POTK, INPUT);
 
+  PIDc.SetMode(AUTOMATIC);
   PIDc.SetTunings(kpCentral, kiCentral, kdCentral);
   PIDc.SetOutputLimits(MIN, MAX);
 
   ler_sensores();
   delay(2000);
   time = millis();
-  //last_time = time;
+  // last_time = time;
 }
 
 unsigned long time_here_left = 0;
 unsigned long time_here_right = 0;
 unsigned long last_time = 0;
 
-void ajuste_ajustado(float delta)
+void ajuste(float delta)
 {
   // variável que calcula o quanto uma roda deverá diminuir para ajustar o carrinho
   float valor_acelera = ceil((-50.0 / 15.5) * abs(delta) + 100.0);
@@ -155,34 +156,37 @@ void ajuste_ajustado(float delta)
   valor_acelera = min(valor_acelera, 100);
   valor_acelera = max(valor_acelera, 0);
 
+  // CONTROLE PID
+  // valor_acelera *= OutputC / MAX_VOLTAGE;
+
   // mais a direita
   if (delta > 0)
   {
-    //time_here_right += (millis() - last_time);
-    //time_here_left = 0;
-    // digitalWrite(led_amarelo_esquerda, HIGH);
-    // digitalWrite(led_azul_direita, LOW);
+    // time_here_right += (millis() - last_time);
+    // time_here_left = 0;
+    //  digitalWrite(led_amarelo_esquerda, HIGH);
+    //  digitalWrite(led_azul_direita, LOW);
     acelera(valor_acelera, 100);
   }
 
   // mais a esquerda
   else if (delta < 0)
   {
-    //time_here_left += (millis() - last_time);
-    //time_here_right = 0;
-    // digitalWrite(led_amarelo_esquerda, LOW);
-    // digitalWrite(led_azul_direita, HIGH);
+    // time_here_left += (millis() - last_time);
+    // time_here_right = 0;
+    //  digitalWrite(led_amarelo_esquerda, LOW);
+    //  digitalWrite(led_azul_direita, HIGH);
     acelera(100, valor_acelera);
   }
   else
   {
-    //time_here_left = 0;
-    //time_here_right = 0;
-    // digitalWrite(led_amarelo_esquerda, LOW);
-    // digitalWrite(led_azul_direita, LOW);
+    // time_here_left = 0;
+    // time_here_right = 0;
+    //  digitalWrite(led_amarelo_esquerda, LOW);
+    //  digitalWrite(led_azul_direita, LOW);
     acelera(100, 100);
   }
-  //last_time = millis();
+  // last_time = millis();
 }
 
 // THROTTLE COM FUNÇÃO QUADRATICA QUE NAO SABEMOS COMO, MAS FUNCIONA
@@ -239,7 +243,7 @@ void loop()
     ler_sensores();
     throttle();
     float delta = distanciaE - distanciaD;
-    ajuste_ajustado(delta);
+    ajuste(delta);
 
     PIDc.Compute();
   }
