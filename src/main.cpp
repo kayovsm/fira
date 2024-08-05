@@ -35,6 +35,8 @@ double DIS_MIN = 0.1;
 float MAX_VOLTAGE = 70.0;
 float MIN_VOLTAGE = 55.0;
 
+int SampleTime = 100;
+
 double OutputC;
 double OutputE;
 double OutputD;
@@ -271,6 +273,11 @@ void setup()
   pinMode(TRIGC, OUTPUT);
   pinMode(ECHOC, INPUT);
   pinMode(POTK, INPUT);
+
+  PIDe.SetSampleTime(SampleTime);
+  PIDc.SetSampleTime(SampleTime);
+  PIDd.SetSampleTime(SampleTime);
+  PIDdelta.SetSampleTime(SampleTime);
 
   // Turn the PID on
   PIDe.SetMode(AUTOMATIC);
