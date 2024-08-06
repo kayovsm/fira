@@ -54,7 +54,7 @@ double DIS_MIN = 0.1;
 
 // PID PARA O SENSOR CENTRAL ((DES)ACELERAÇÃO)
 double OutputC;
-double SetpointCentral = 20;
+double SetpointCentral = 15;
 double kpCentral = 5.0, kiCentral = 3.5, kdCentral = 2.0;
 PID PIDc(&distanciaC, &OutputC, &SetpointCentral, kpCentral, kiCentral,
          kdCentral, REVERSE);
@@ -114,8 +114,8 @@ float tratamento(float vel, float MIN_VOLTAGE)
 
 void acelera(float vel_esquerda, float vel_direita)
 {
-  int vel_direita_int = ceil(tratamento(vel_direita, MIN_VOLTAGE_DIR));
-  int vel_esquerda_int = ceil(tratamento(vel_esquerda, MIN_VOLTAGE_ESQ));
+  int vel_direita_int = ceil(tratamento((vel_direita* OutputC / MAX_VOLTAGE), MIN_VOLTAGE_DIR));
+  int vel_esquerda_int = ceil(tratamento((vel_esquerda* OutputC / MAX_VOLTAGE), MIN_VOLTAGE_ESQ));
 
   digitalWrite(IN3, HIGH);
   digitalWrite(IN4, LOW);
@@ -143,9 +143,18 @@ void setup()
   pinMode(ECHOC, INPUT);
   pinMode(POTK, INPUT);
 
-  // PIDc.SetMode(AUTOMATIC);
-  // PIDc.SetTunings(kpCentral, kiCentral, kdCentral);
-  // PIDc.SetOutputLimits(MIN_VOLTAGE, MAX_VOLTAGE);
+  PIDc.SetSampleTime(10);
+  PIDc.SetMode(AUTOMATIC);
+  PIDc.SetTunings(kpCentral, kiCentral, kdCentral);
+  // if (MIN_VOLTAGE_DIR < MIN_VOLTAGE_ESQ)
+  // {
+  //   PIDc.SetOutputLimits(MIN_VOLTAGE_DIR, MAX_VOLTAGE);
+  // }
+  // else
+  // {
+  //   PIDc.SetOutputLimits(MIN_VOLTAGE_ESQ, MAX_VOLTAGE);
+  // }
+    PIDc.SetOutputLimits(70, MAX_VOLTAGE);
 
   ler_sensores();
   delay(2000);
@@ -208,15 +217,15 @@ void ajuste(float delta)
   double valor_acelera;
 
   // CONTROLE PID
-  // valor_acelera *= OutputC / MAX_VOLTAGE;
 
   // float valor_acelera =
   //  mais a direita
   if (delta > 0)
   {
-    valor_acelera = output_func_math(2, MIN_VOLTAGE_ESQ, abs(delta));
+    valor_acelera = output_func_math(0, MIN_VOLTAGE_ESQ, abs(delta));
     valor_acelera = min(valor_acelera, 100);
     valor_acelera = max(valor_acelera, 0);
+
     // time_here_right += (millis() - last_time);
     // time_here_left = 0;
     //  digitalWrite(led_amarelo_esquerda, HIGH);
@@ -227,14 +236,14 @@ void ajuste(float delta)
   // mais a esquerda
   else if (delta < 0)
   {
-    valor_acelera = output_func_math(2, MIN_VOLTAGE_DIR, (delta));
+    valor_acelera = output_func_math(0, MIN_VOLTAGE_DIR, (delta));
     valor_acelera = min(valor_acelera, 100);
     valor_acelera = max(valor_acelera, 0);
     // time_here_left += (millis() - last_time);
     // time_here_right = 0;
     //  digitalWrite(led_amarelo_esquerda, LOW);
     //  digitalWrite(led_azul_direita, HIGH);
-    acelera(100, valor_acelera*0.20);
+    acelera(100, valor_acelera * 0.20);
   }
   else
   {
