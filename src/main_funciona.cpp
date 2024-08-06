@@ -102,7 +102,7 @@ float tratamento(float vel) {
   if (vel < MIN_VOLTAGE) {
     vel = MIN_VOLTAGE;
   }
-  vel = (vel) * MAX_VOLTAGE / 100;
+  vel = (vel)*MAX_VOLTAGE / 100;
   return vel;
 }
 
@@ -149,7 +149,8 @@ void setup() {
 // unsigned long time_here_right = 0;
 // unsigned long last_time = 0;
 
-double output_func_math(int choice, double referencia) {
+double output_func_math(int choice, double referencia,
+                        double referencia_2 = 0) {
   double c;
   double a;
   switch (choice) {
@@ -168,6 +169,16 @@ double output_func_math(int choice, double referencia) {
     case 2:
       return ceil((-50.0 / 15.5) * referencia + 100.0);
 
+    // 3 variaveis, varia em relacao ao tempo
+    case 3:
+      c = MAX_VOLTAGE;
+      a = (MIN_VOLTAGE - MAX_VOLTAGE) / DIS_MAX * DIS_MAX;
+      if (a < 1) {
+        return referencia * referencia * a * referencia_2 + c;
+      } else {
+        return referencia * referencia * a / referencia_2 + c;
+      }
+
     // erro
     default:
       return -1;
@@ -178,7 +189,7 @@ void ajuste(float delta) {
   // variável que calcula o quanto uma roda deverá diminuir para ajustar o
   // carrinho
 
-  double valor_acelera = output_func_math(0, abs(delta));
+  double valor_acelera = output_func_math(1, abs(delta));
 
   // CONTROLE PID
   // valor_acelera *= OutputC / MAX_VOLTAGE;
