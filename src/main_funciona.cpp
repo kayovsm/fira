@@ -128,13 +128,13 @@ void acelera(float vel_esquerda, float vel_direita)
 
 void back()
 {
-  digitalWrite(IN3, LOW;
+  digitalWrite(IN3, LOW);
   digitalWrite(IN4, HIGH);
-  analogWrite(ENB, vel_esquerda_int);
+  analogWrite(ENB, MAX_VOLTAGE);
 
   digitalWrite(IN1, LOW);
   digitalWrite(IN2, HIGH);
-  analogWrite(ENA, vel_direita_int);
+  analogWrite(ENA, MAX_VOLTAGE);
 }
 
 void setup()
