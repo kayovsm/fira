@@ -126,6 +126,17 @@ void acelera(float vel_esquerda, float vel_direita)
   analogWrite(ENA, vel_direita_int);
 }
 
+void back()
+{
+  digitalWrite(IN3, LOW;
+  digitalWrite(IN4, HIGH);
+  analogWrite(ENB, vel_esquerda_int);
+
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  analogWrite(ENA, vel_direita_int);
+}
+
 void setup()
 {
   Serial.begin(9600); // Comunicação Serial com o Computador
