@@ -308,14 +308,40 @@ void throttle()
   }
 }
 
+//posição 0 esquerda, 1 centro, 2 direita
+int *livre()
+{
+  int vector[3] = {1, 0, 1};
+  //se o sensor da frente for maior que 30 centímetros, então está livre
+  sensorC >= 30 ? vector[1] = 1: vector[1] = 0;
+
+  return vector;
+}
+
 void loop()
 {
   while (true)
   {
     ler_sensores();
-    PIDc.Compute();
-    // throttle();
-    float delta = distanciaE - distanciaD;
-    ajuste(delta);
+    int *vector = livre();
+    if(vector[2])
+    {
+      virar_direita();
+    }
+    if(vector[1])
+    {
+      frente();
+    }
+    else
+    {
+      if(vector[0])
+      {
+        virar_esquerda();
+      }
+      else
+      {
+        virar_direita();
+      }
+    }
   }
 }
