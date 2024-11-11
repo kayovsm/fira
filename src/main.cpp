@@ -44,6 +44,8 @@ float MIN_VOLTAGE_DIR = 30;
 
 int direcao[2];
 
+void (*reset)(void) = 0;
+
 void apaga_led()
 {
   digitalWrite(led_azul, LOW);
@@ -56,45 +58,21 @@ void ler_sensores()
 {
   apaga_led();
   distanciaDF = (sensorDF.read()) / 10.0;
-  if (distanciaDF > 400)
-  {
-    distanciaDF = (sensorDF.read()) / 10.0;
-  }
   if (sensorDF.timeoutOccurred())
   {
-    distanciaDF = 400;
-    digitalWrite(led_vermelho, HIGH);
-  }
-  else
-  {
-    distanciaDF = distanciaDF;
+    reset();
   }
 
   distanciaDR = (sensorDR.read()) / 10.0;
-  if (distanciaDR > 400)
-  {
-    distanciaDR = (sensorDR.read()) / 10.0;
-  }
   if (sensorDR.timeoutOccurred())
   {
-    distanciaDR = 400;
-    digitalWrite(led_azul, HIGH);
-  }
-  else
-  {
-    distanciaDR = distanciaDR;
+    reset();
   }
 
   distanciaC = (sensorC.read()) / 10.0;
-  sensorC.timeoutOccurred() ? distanciaC = 400 : distanciaC = distanciaC;
   if (sensorC.timeoutOccurred())
   {
-    distanciaC = 400;
-    digitalWrite(led_verde, HIGH);
-  }
-  else
-  {
-    distanciaC = distanciaC;
+    reset();
   }
 
   if (distanciaC > 600)
@@ -219,9 +197,9 @@ void setup()
   }
 
   Serial.begin(115200); // Comunicação Serial com o Computador
-    Wire.begin();
+  Wire.begin();
   Wire.setClock(400000); // use 400 kHz I2C
-  pinMode(IN1, OUTPUT); // definição dos pinos entradas e saidas
+  pinMode(IN1, OUTPUT);  // definição dos pinos entradas e saidas
   pinMode(IN2, OUTPUT);
   pinMode(IN3, OUTPUT);      // OUTPUT = Saída
   pinMode(IN4, OUTPUT);      // INPUT = Entrada
@@ -298,40 +276,49 @@ void setup()
   frente();
   acelera(0, 0);
   delay(4000);
-
-  wdt_enable(WDTO_4S);
 }
 
 // DF é o mais próximo dos motores, enquanto o DR é o sensor na parte mais ao fundo do carrinho
 void loop()
 {
-  wdt_reset();
+
   ler_sensores();
   // imprimeDistancias();
 
   double distanciaMIN = 1;
   double distanciaMAX = 5;
 
-    
-
-  // if (distanciaDF > tamanho_pista) // 5 -> curva pra direita
-  // {
-  //   // girar pra direita ate encontrar de novo a parede (alkguma leitura)
-  //   // vai pra frente
-  //   direita();
-  //   while (distanciaDF > tamanho_pista)
-  //   {
-  //     acelera(70, 70);
-  //     ler_sensores();
-  //   }
-  //   frente();
-  //   time = millis();
-  //   while (distanciaDF < tamanho_pista && millis() - time <= 150)
-  //   {
-  //     acelera(100, 85);
-  //     ler_sensores();
-  //   }
-  // }
+  if (distanciaDF > tamanho_pista && distanciaDR < tamanho_pista) // 5 -> curva pra direita
+  {
+    // girar pra direita ate encontrar de novo a parede (alguma leitura)
+    // vai pra frente
+    frente();
+    while (distanciaDF > tamanho_pista)
+    {
+      acelera(100, 60);
+      ler_sensores();
+    }
+    while (distanciaDF < tamanho_pista)
+    {
+      acelera(100, 85);
+      ler_sensores();
+    }
+    acelera(0,0);
+  }
+  else // perdi o dois sensores
+  {
+    frente();
+    time = millis();
+    while ((distanciaDR > tamanho_pista && distanciaDF > tamanho_pista) && millis()-time <= 150)
+    {
+      acelera(100, 75);
+      ler_sensores();
+    }
+    if((distanciaDR > tamanho_pista && distanciaDF > tamanho_pista)){
+      // direita();
+    }
+    acelera(0,0);
+  }
 
   if (distanciaC > 8) // se a distanciaC for maior, sei que posso ir pra frente, mas preciso verificar minha distancia pra parede de referencia
   {
@@ -344,28 +331,28 @@ void loop()
     else
     {
       ler_sensores();
-    double original_angle = angle;
-    while (original_angle * angle > 0)
-    {
-      float max_voltage_original = MAX_VOLTAGE;
-      MAX_VOLTAGE = 165;
-      if (distanciaDF - distanciaDR > 0)
+      double original_angle = angle;
+      while (original_angle * angle > 0)
       {
-        direita();
-        acelera(100, 100);
-        delay(20);
+        float max_voltage_original = MAX_VOLTAGE;
+        MAX_VOLTAGE = 165;
+        if (distanciaDF - distanciaDR > 0)
+        {
+          direita();
+          acelera(100, 100);
+          delay(20);
+        }
+        else
+        {
+          esquerda();
+          acelera(100, 100);
+          delay(20);
+        }
+        MAX_VOLTAGE = max_voltage_original;
+        frente();
+        acelera(0, 0);
+        ler_sensores();
       }
-      else
-      {
-        esquerda();
-        acelera(100, 100);
-        delay(20);
-      }
-      MAX_VOLTAGE = max_voltage_original;
-      frente();
-      acelera(0, 0);
-      ler_sensores();
-    }
     }
     if (min(distanciaDF, distanciaDR) <= distanciaMIN)
     {
