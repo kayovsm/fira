@@ -16,17 +16,17 @@
 #define xshutPinsC 9
 #define xshutPinsD 4
 
-VL53L1X sensorE;
 VL53L1X sensorC;
-VL53L1X sensorD;
+VL53L1X sensorDF;
+VL53L1X sensorDR;
 
 // Variáveis Globais
 float tamanho_carrinho = 14;
 float tamanho_pista = 30;
 
-double distanciaE;
+double distanciaDF;
 double distanciaC;
-double distanciaD;
+double distanciaDR;
 double delta;
 double DIS_MAX = 7.7;
 
@@ -48,36 +48,34 @@ void apaga_led()
 
 void ler_sensores()
 {
-  distanciaE = (sensorE.read() - 20) / 10;
-  if (distanciaE > 400)
+  distanciaDF = (sensorDF.read() - 20) / 10;
+  if (distanciaDF > 400)
   {
-    distanciaE = (sensorE.read() - 20) / 10;
+    distanciaDF = (sensorDF.read() - 20) / 10;
   }
-  sensorE.timeoutOccurred() ? distanciaE = 400 : distanciaE = distanciaE;
+  sensorDF.timeoutOccurred() ? distanciaDF = 400 : distanciaDF = distanciaDF;
 
-  distanciaD = (sensorD.read() - 20) / 10;
-  if (distanciaD > 400)
+  distanciaDR = (sensorDR.read() - 20) / 10;
+  if (distanciaDR > 400)
   {
-    distanciaD = (sensorE.read() - 20) / 10;
+    distanciaDR = (sensorDR.read() - 20) / 10;
   }
-  sensorD.timeoutOccurred() ? distanciaD = 400 : distanciaD = distanciaD;
+  sensorDR.timeoutOccurred() ? distanciaDR = 400 : distanciaDR = distanciaDR;
 
   distanciaC = (sensorC.read()) / 10;
   sensorC.timeoutOccurred() ? distanciaC = 400 : distanciaC = distanciaC;
-
-  delta = distanciaE - distanciaD;
 }
 
 void imprimeDistancias()
 {
   Serial.print("Dis Esq: ");
-  Serial.print(distanciaE);
+  Serial.print(distanciaDF);
   Serial.print(" cm  /  ");
   Serial.print("Dis Cen: ");
   Serial.print(distanciaC);
   Serial.print(" cm   /  ");
   Serial.print("Dis Dir: ");
-  Serial.print(distanciaD);
+  Serial.print(distanciaDR);
   Serial.println(" cm     /   ");
 }
 
@@ -195,8 +193,8 @@ void setup()
   pinMode(xshutPinsE, INPUT);
   delay(10);
 
-  sensorE.setTimeout(500);
-  if (!sensorE.init())
+  sensorDF.setTimeout(500);
+  if (!sensorDF.init())
   {
     Serial.print("Failed to detect and initialize sensor ");
     Serial.println("E");
@@ -205,15 +203,15 @@ void setup()
     {
     }
   }
-  sensorE.setAddress(0x2A);
+  sensorDF.setAddress(0x2A);
 
-  sensorE.startContinuous(50);
+  sensorDF.startContinuous(50);
 
   pinMode(xshutPinsD, INPUT);
   delay(10);
 
-  sensorD.setTimeout(500);
-  if (!sensorD.init())
+  sensorDR.setTimeout(500);
+  if (!sensorDR.init())
   {
     Serial.print("Failed to detect and initialize sensor ");
     Serial.println("D");
@@ -222,9 +220,9 @@ void setup()
     {
     }
   }
-  sensorD.setAddress(0x2A + 1);
+  sensorDR.setAddress(0x2A + 1);
 
-  sensorD.startContinuous(50);
+  sensorDR.startContinuous(50);
 
   pinMode(xshutPinsC, INPUT);
   delay(10);
@@ -251,13 +249,13 @@ void setup()
   digitalWrite(LED_BUILTIN, LOW);
   frente();
   acelera(0, 0);
-  delay(5000);
+  delay(4000);
 }
 
 void acompanha_parede()
 {
   apaga_led();
-  if (distanciaD > tamanho_pista) // 5 -> curva pra direita
+  if (distanciaDR > tamanho_pista) // 5 -> curva pra direita
   {
     digitalWrite(led_azul, HIGH);
     digitalWrite(led_vermelho, HIGH);
@@ -275,19 +273,19 @@ void acompanha_parede()
     frente();
     acelera(0, 0);
   }
-  else if (distanciaD >= 10) // 6
+  else if (distanciaDR >= 10) // 6
   {
     digitalWrite(led_verde, HIGH);
     digitalWrite(led_vermelho, HIGH);
     direita();
     {
-      acelera(100, 100);
-      delay(50);
+      acelera(80, 80);
+      delay(75);
     }
     frente();
     {
-      acelera(100, 70);
-      delay(150);
+      acelera(60, 100);
+      delay(175);
     }
     parar();
     {
@@ -298,17 +296,7 @@ void acompanha_parede()
     ler_sensores();
     {
       apaga_led();
-      if (distanciaC > 6) // 7
-      {
-        // digitalWrite(led_vermelho, HIGH);
-        // digitalWrite(led_verde, HIGH);
-        // digitalWrite(led_azul, HIGH);
-        // acelera(100, 35);
-        // delay(100);
-        // parar();
-        // delay(75);
-      }
-      else // 8
+      if (distanciaC < 7) // 7
       {
         digitalWrite(led_branco, HIGH);
         re();
@@ -325,16 +313,16 @@ void acompanha_parede()
     frente();
     acelera(0, 0);
   }
-  else if (distanciaD >= 7) // 9
+  else if (distanciaDR >= 7) // 9
   {
     digitalWrite(led_branco, HIGH);
     digitalWrite(led_azul, HIGH);
-    acelera(80, 100);
+    acelera(60, 100);
     delay(150);
     direita();
     {
       acelera(100, 100);
-      delay(50);
+      delay(75);
     }
     parar();
     {
@@ -343,7 +331,7 @@ void acompanha_parede()
     frente();
     acelera(0, 0);
   }
-  else if (distanciaD <= 5) // 10
+  else if (distanciaDR <= 5) // 10
   {
     digitalWrite(led_branco, HIGH);
     digitalWrite(led_verde, HIGH);
@@ -352,12 +340,16 @@ void acompanha_parede()
     esquerda();
     {
       acelera(100, 100);
-      delay(100);
+      delay(50);
     }
+    parar();
+    digitalWrite(led_branco, HIGH);
+    digitalWrite(led_verde, HIGH);
+    delay(50);
     frente();
     {
-      acelera(100, 80);
-      delay(100);
+      acelera(100, 40);
+      delay(150);
     }
     parar();
     {
@@ -371,8 +363,20 @@ void acompanha_parede()
     digitalWrite(led_branco, HIGH);
     digitalWrite(led_verde, HIGH);
     digitalWrite(led_azul, HIGH);
-    acelera(70, 100);
-    delay(150);
+    acelera(60, 100);
+    delay(100);
+    parar();
+    {
+      digitalWrite(led_branco, HIGH);
+      digitalWrite(led_verde, HIGH);
+      digitalWrite(led_azul, HIGH);
+      delay(75);
+    }
+    direita();
+    {
+      acelera(100, 100);
+      delay(50);
+    }
     parar();
     {
       delay(75);
@@ -384,6 +388,10 @@ void acompanha_parede()
 
 void loop()
 {
+  // frente();
+  // while(true){
+  //   acelera(100,70);
+  // }
   apaga_led();
   frente();
   acelera(0, 0);
@@ -394,7 +402,7 @@ void loop()
     digitalWrite(led_azul, HIGH);
     acompanha_parede();
   }
-  else if (distanciaE > tamanho_pista) // 2 -> frente e direita ocupada, curva à esquerda
+  else if (distanciaDF > tamanho_pista) // 2 -> frente e direita ocupada, curva à esquerda
   {
     digitalWrite(led_verde, HIGH);
 
@@ -412,18 +420,17 @@ void loop()
     frente();
     acelera(0, 0);
   }
-  else if (distanciaD < ((tamanho_pista - tamanho_carrinho) / 2) && distanciaE < ((tamanho_pista - tamanho_carrinho) / 2)) // 3 -> caminho sem saida
+  else if (distanciaDR < ((tamanho_pista - tamanho_carrinho) / 2) && distanciaDF < ((tamanho_pista - tamanho_carrinho) / 2)) // 3 -> caminho sem saida
   {
     digitalWrite(led_azul, HIGH);
     digitalWrite(led_verde, HIGH);
     digitalWrite(LED_BUILTIN, HIGH);
-    while (distanciaE < 10)
+    while (distanciaDF < 10)
     {
       ler_sensores();
       esquerda();
       acelera(100, 100);
       delay(75);
-
       parar();
       delay(75);
     }
