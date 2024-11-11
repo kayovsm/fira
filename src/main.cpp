@@ -1,9 +1,9 @@
 #include "Arduino.h"
 #include "VL53L1X.h"
-#include "HardwareSerial.h"
 #include <math.h>
 #include <stdlib.h>
 #include <avr/wdt.h>
+#include <Wire.h>
 
 #define led_branco 2
 #define led_vermelho 3
@@ -54,22 +54,48 @@ void apaga_led()
 
 void ler_sensores()
 {
+  apaga_led();
   distanciaDF = (sensorDF.read()) / 10.0;
   if (distanciaDF > 400)
   {
     distanciaDF = (sensorDF.read()) / 10.0;
   }
-  sensorDF.timeoutOccurred() ? distanciaDF = 400 : distanciaDF = distanciaDF;
+  if (sensorDF.timeoutOccurred())
+  {
+    distanciaDF = 400;
+    digitalWrite(led_vermelho, HIGH);
+  }
+  else
+  {
+    distanciaDF = distanciaDF;
+  }
 
   distanciaDR = (sensorDR.read()) / 10.0;
   if (distanciaDR > 400)
   {
     distanciaDR = (sensorDR.read()) / 10.0;
   }
-  sensorDR.timeoutOccurred() ? distanciaDR = 400 : distanciaDR = distanciaDR;
+  if (sensorDR.timeoutOccurred())
+  {
+    distanciaDR = 400;
+    digitalWrite(led_azul, HIGH);
+  }
+  else
+  {
+    distanciaDR = distanciaDR;
+  }
 
   distanciaC = (sensorC.read()) / 10.0;
   sensorC.timeoutOccurred() ? distanciaC = 400 : distanciaC = distanciaC;
+  if (sensorC.timeoutOccurred())
+  {
+    distanciaC = 400;
+    digitalWrite(led_verde, HIGH);
+  }
+  else
+  {
+    distanciaC = distanciaC;
+  }
 
   if (distanciaC > 600)
   {
@@ -193,6 +219,8 @@ void setup()
   }
 
   Serial.begin(115200); // Comunicação Serial com o Computador
+    Wire.begin();
+  Wire.setClock(400000); // use 400 kHz I2C
   pinMode(IN1, OUTPUT); // definição dos pinos entradas e saidas
   pinMode(IN2, OUTPUT);
   pinMode(IN3, OUTPUT);      // OUTPUT = Saída
@@ -279,29 +307,31 @@ void loop()
 {
   wdt_reset();
   ler_sensores();
-  imprimeDistancias();
+  // imprimeDistancias();
 
   double distanciaMIN = 1;
   double distanciaMAX = 5;
 
-  if (distanciaDF > tamanho_pista) // 5 -> curva pra direita
-  {
-    // girar pra direita ate encontrar de novo a parede (alkguma leitura)
-    // vai pra frente
-    direita();
-    while (distanciaDF > tamanho_pista)
-    {
-      acelera(70, 70);
-      ler_sensores();
-    }
-    frente();
-    time = millis();
-    while (distanciaDF < tamanho_pista && millis() - time <= 150)
-    {
-      acelera(100, 85);
-      ler_sensores();
-    }
-  }
+    
+
+  // if (distanciaDF > tamanho_pista) // 5 -> curva pra direita
+  // {
+  //   // girar pra direita ate encontrar de novo a parede (alkguma leitura)
+  //   // vai pra frente
+  //   direita();
+  //   while (distanciaDF > tamanho_pista)
+  //   {
+  //     acelera(70, 70);
+  //     ler_sensores();
+  //   }
+  //   frente();
+  //   time = millis();
+  //   while (distanciaDF < tamanho_pista && millis() - time <= 150)
+  //   {
+  //     acelera(100, 85);
+  //     ler_sensores();
+  //   }
+  // }
 
   if (distanciaC > 8) // se a distanciaC for maior, sei que posso ir pra frente, mas preciso verificar minha distancia pra parede de referencia
   {
@@ -314,28 +344,28 @@ void loop()
     else
     {
       ler_sensores();
-      double original_angle = angle;
-      while (original_angle * angle > 0)
+    double original_angle = angle;
+    while (original_angle * angle > 0)
+    {
+      float max_voltage_original = MAX_VOLTAGE;
+      MAX_VOLTAGE = 165;
+      if (distanciaDF - distanciaDR > 0)
       {
-        float max_voltage_original = MAX_VOLTAGE;
-        MAX_VOLTAGE = 165;
-        if (angle > 0)
-        {
-          direita();
-          acelera(100, 100);
-          delay(10);
-        }
-        else
-        {
-          esquerda();
-          acelera(100, 100);
-          delay(10);
-        }
-        MAX_VOLTAGE = max_voltage_original;
-        frente();
-        acelera(0, 0);
-        ler_sensores();
+        direita();
+        acelera(100, 100);
+        delay(20);
       }
+      else
+      {
+        esquerda();
+        acelera(100, 100);
+        delay(20);
+      }
+      MAX_VOLTAGE = max_voltage_original;
+      frente();
+      acelera(0, 0);
+      ler_sensores();
+    }
     }
     if (min(distanciaDF, distanciaDR) <= distanciaMIN)
     {
@@ -347,8 +377,9 @@ void loop()
       // forçar pra direita
       acelera(100, 70);
     }
-    else{
-      acelera(100,85);
+    else
+    {
+      acelera(100, 85);
     }
     delay(50);
   }
