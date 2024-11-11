@@ -1,6 +1,9 @@
 #include "Arduino.h"
 #include "VL53L1X.h"
 #include "HardwareSerial.h"
+#include <math.h>
+#include <stdlib.h>
+#include <avr/wdt.h>
 
 #define led_branco 2
 #define led_vermelho 3
@@ -28,7 +31,10 @@ double distanciaDF;
 double distanciaC;
 double distanciaDR;
 double delta;
+double media;
 double DIS_MAX = 7.7;
+double dist_sensores = 4.1;
+double angle;
 
 unsigned long time;
 
@@ -62,21 +68,41 @@ void ler_sensores()
   }
   sensorDR.timeoutOccurred() ? distanciaDR = 400 : distanciaDR = distanciaDR;
 
-  distanciaC = (sensorC.read()) / 10;
+  distanciaC = (sensorC.read() - 10) / 10;
   sensorC.timeoutOccurred() ? distanciaC = 400 : distanciaC = distanciaC;
+
+  if (distanciaC > 600)
+  {
+    distanciaC = 0;
+  }
+  if (distanciaDR > 600)
+  {
+    distanciaDR = 0;
+  }
+  if (distanciaDF > 600)
+  {
+    distanciaDF = 0;
+  }
+
+  media = (distanciaDF + distanciaDR) / 2;
+  angle = atan((distanciaDF - distanciaDR) / dist_sensores);
 }
 
 void imprimeDistancias()
 {
-  Serial.print("Dis Esq: ");
+  Serial.print("Dis DF: ");
   Serial.print(distanciaDF);
   Serial.print(" cm  /  ");
   Serial.print("Dis Cen: ");
   Serial.print(distanciaC);
   Serial.print(" cm   /  ");
-  Serial.print("Dis Dir: ");
+  Serial.print("Dis DR: ");
   Serial.print(distanciaDR);
   Serial.println(" cm     /   ");
+  Serial.print("Média: ");
+  Serial.println(media);
+  Serial.print("angle: ");
+  Serial.println(angle);
 }
 
 float tratamento(float vel)
@@ -143,14 +169,13 @@ void acelera(float vel_esquerda, float vel_direita)
 {
   int vel_direita_int = round(tratamento((vel_direita)));
   int vel_esquerda_int = round(tratamento((vel_esquerda)));
+  analogWrite(direcao[1], vel_esquerda_int);
+  analogWrite(direcao[0], vel_direita_int);
 
-  // fazer função para retornar qual o sentido de giro
   // Serial.println(direcao[0]);
   // Serial.println(direcao[1]);
   // Serial.println(vel_esquerda_int);
   // Serial.println(vel_direita_int);
-  analogWrite(direcao[1], vel_esquerda_int);
-  analogWrite(direcao[0], vel_direita_int);
 }
 
 void acende_leds()
@@ -170,28 +195,27 @@ void setup()
   Serial.begin(115200); // Comunicação Serial com o Computador
   pinMode(IN1, OUTPUT); // definição dos pinos entradas e saidas
   pinMode(IN2, OUTPUT);
-  pinMode(IN3, OUTPUT); // OUTPUT = Saída
-  pinMode(IN4, OUTPUT); // INPUT = Entrada
-
+  pinMode(IN3, OUTPUT);      // OUTPUT = Saída
+  pinMode(IN4, OUTPUT);      // INPUT = Entrada
   pinMode(led_azul, OUTPUT); // definição dos pinos entradas e saidas
   pinMode(led_branco, OUTPUT);
   pinMode(led_verde, OUTPUT); // OUTPUT = Saída
   pinMode(led_vermelho, OUTPUT);
-
   pinMode(xshutPinsD, OUTPUT);
   digitalWrite(xshutPinsD, LOW);
-
   pinMode(xshutPinsC, OUTPUT);
   digitalWrite(xshutPinsC, LOW);
-
   pinMode(xshutPinsE, OUTPUT);
   digitalWrite(xshutPinsE, LOW);
   pinMode(A3, OUTPUT);
   pinMode(A2, INPUT);
   digitalWrite(A3, HIGH);
-
   pinMode(xshutPinsE, INPUT);
   delay(10);
+
+  digitalWrite(led_branco, HIGH);
+  delay(100);
+  digitalWrite(led_branco, LOW);
 
   sensorDF.setTimeout(500);
   if (!sensorDF.init())
@@ -204,9 +228,7 @@ void setup()
     }
   }
   sensorDF.setAddress(0x2A);
-
   sensorDF.startContinuous(50);
-
   pinMode(xshutPinsD, INPUT);
   delay(10);
 
@@ -221,9 +243,7 @@ void setup()
     }
   }
   sensorDR.setAddress(0x2A + 1);
-
   sensorDR.startContinuous(50);
-
   pinMode(xshutPinsC, INPUT);
   delay(10);
 
@@ -237,9 +257,9 @@ void setup()
     {
     }
   }
-
   sensorC.setAddress(0x2A + 2);
   sensorC.startContinuous(50);
+
   Serial.print("Tamanho da pista: ");
   Serial.println(tamanho_pista);
 
@@ -250,208 +270,91 @@ void setup()
   frente();
   acelera(0, 0);
   delay(4000);
+
+  wdt_enable(WDTO_4S);
 }
 
-void acompanha_parede()
-{
-  apaga_led();
-  if (distanciaDR > tamanho_pista) // 5 -> curva pra direita
-  {
-    digitalWrite(led_azul, HIGH);
-    digitalWrite(led_vermelho, HIGH);
-    acelera(0, 100);
-    delay(150);
-    direita();
-    {
-      acelera(100, 100);
-      delay(175);
-    }
-    parar();
-    {
-      delay(75);
-    }
-    frente();
-    acelera(0, 0);
-  }
-  else if (distanciaDR >= 10) // 6
-  {
-    digitalWrite(led_verde, HIGH);
-    digitalWrite(led_vermelho, HIGH);
-    direita();
-    {
-      acelera(80, 80);
-      delay(75);
-    }
-    frente();
-    {
-      acelera(60, 100);
-      delay(175);
-    }
-    parar();
-    {
-      delay(50);
-    }
-    frente();
-    acelera(0, 0);
-    ler_sensores();
-    {
-      apaga_led();
-      if (distanciaC < 7) // 7
-      {
-        digitalWrite(led_branco, HIGH);
-        re();
-        {
-          acelera(60, 80);
-          delay(350);
-        }
-        parar();
-        {
-          delay(75);
-        }
-      }
-    }
-    frente();
-    acelera(0, 0);
-  }
-  else if (distanciaDR >= 7) // 9
-  {
-    digitalWrite(led_branco, HIGH);
-    digitalWrite(led_azul, HIGH);
-    acelera(60, 100);
-    delay(150);
-    direita();
-    {
-      acelera(100, 100);
-      delay(75);
-    }
-    parar();
-    {
-      delay(75);
-    }
-    frente();
-    acelera(0, 0);
-  }
-  else if (distanciaDR <= 5) // 10
-  {
-    digitalWrite(led_branco, HIGH);
-    digitalWrite(led_verde, HIGH);
-    // digitalWrite(IN1, HIGH);
-    // digitalWrite(IN3, LOW);
-    esquerda();
-    {
-      acelera(100, 100);
-      delay(50);
-    }
-    parar();
-    digitalWrite(led_branco, HIGH);
-    digitalWrite(led_verde, HIGH);
-    delay(50);
-    frente();
-    {
-      acelera(100, 40);
-      delay(150);
-    }
-    parar();
-    {
-      delay(75);
-    }
-    frente();
-    acelera(0, 0);
-  }
-  else // 11 -> 6 centimetros da parede da direita, pende um pouco pra esquerda
-  {
-    digitalWrite(led_branco, HIGH);
-    digitalWrite(led_verde, HIGH);
-    digitalWrite(led_azul, HIGH);
-    acelera(60, 100);
-    delay(100);
-    parar();
-    {
-      digitalWrite(led_branco, HIGH);
-      digitalWrite(led_verde, HIGH);
-      digitalWrite(led_azul, HIGH);
-      delay(75);
-    }
-    direita();
-    {
-      acelera(100, 100);
-      delay(50);
-    }
-    parar();
-    {
-      delay(75);
-    }
-    frente();
-    acelera(0, 0);
-  }
-}
-
+// DF é o mais próximo dos motores, enquanto o DR é o sensor na parte mais ao fundo do carrinho
 void loop()
 {
-  // frente();
-  // while(true){
-  //   acelera(100,70);
-  // }
-  apaga_led();
-  frente();
-  acelera(0, 0);
-  delay(10);
+  wdt_reset();
   ler_sensores();
-  if (distanciaC > 6) // 1 -> frente livre, acompanhar parede da direita ate achar alguma abertura
-  {
-    digitalWrite(led_azul, HIGH);
-    acompanha_parede();
-  }
-  else if (distanciaDF > tamanho_pista) // 2 -> frente e direita ocupada, curva à esquerda
-  {
-    digitalWrite(led_verde, HIGH);
 
-    while (distanciaC < 15)
+  double distanciaMIN = 5;
+  double distanciaMAX = 11;
+
+  if (distanciaDF > tamanho_pista) // 5 -> curva pra direita
+  {
+    // girar pra direita ate encontrar de novo a parede (alkguma leitura)
+    // vai pra frente
+    direita();
+    while (distanciaDF > tamanho_pista)
     {
+      acelera(70, 70);
       ler_sensores();
-      esquerda();
-      acelera(100, 100);
-      delay(100);
-      parar();
-      {
-        delay(75);
-      }
     }
     frente();
-    acelera(0, 0);
-  }
-  else if (distanciaDR < ((tamanho_pista - tamanho_carrinho) / 2) && distanciaDF < ((tamanho_pista - tamanho_carrinho) / 2)) // 3 -> caminho sem saida
-  {
-    digitalWrite(led_azul, HIGH);
-    digitalWrite(led_verde, HIGH);
-    digitalWrite(LED_BUILTIN, HIGH);
-    while (distanciaDF < 10)
+    time = millis();
+    while (distanciaDF < tamanho_pista && millis() - time <= 150)
     {
+      acelera(100, 85);
       ler_sensores();
-      esquerda();
-      acelera(100, 100);
-      delay(75);
-      parar();
-      delay(75);
     }
-    frente();
-    acelera(0, 0);
   }
-  else // 4 -> aproximou demais da parede da frente e tem a esquerda bloqueada
+
+  if (distanciaC > 8) // se a distanciaC for maior que 6, sei que posso ir pra frente, mas preciso verificar minha distancia pra parede de referencia
   {
-    digitalWrite(led_vermelho, HIGH);
-    re();
+    if (media > distanciaMIN && media < distanciaMAX) // corrigir a inclinação com base na média (na realidade, seria com base no angulo ne?)
     {
-      acelera(100, 50);
-      delay(75);
-      acelera(70, 100);
-      delay(75);
-    }
-    parar();
-    {
+      frente();
+      acelera(100, 85); // isso era pra andar reto, ajustar
       delay(50);
     }
-    frente();
-    acelera(0, 0);
+
+    else if (min(distanciaDF, distanciaDR) <= distanciaMIN || max(distanciaDF, distanciaDR) >= distanciaMAX)
+    {
+      ler_sensores();
+      double original_angle = angle;
+      while (original_angle * angle > 0)
+      {
+        if (angle > 0)
+        {
+          direita();
+          acelera(100, 100);
+          delay(75 * abs(angle));
+        }
+        else
+        {
+          esquerda();
+          acelera(85, 85);
+          delay(75 * abs(angle));
+        }
+        Serial.print("Delay: ");
+        Serial.println(100 * abs(angle));
+        frente();
+        acelera(0, 0);
+        ler_sensores();
+        imprimeDistancias();
+      }
+      acelera(100, 85);
+      delay(50);
+    }
+  }
+  else
+  {
+    while (distanciaC < 8) // GIRAR ATE ENCONTRAR A ABERTURA NA DIREITA, OU VOLTAR POR ONDE VEIO CASO SEJA UM SEM SAIDA
+    {
+      re();
+      acelera(100,70);
+      delay(75);
+      esquerda();
+      acelera(100, 100);
+      delay(75);
+      parar();
+      delay(75);
+      frente();
+      acelera(0, 0);
+      ler_sensores();
+    }
   }
 }
