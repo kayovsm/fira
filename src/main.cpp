@@ -54,21 +54,21 @@ void apaga_led()
 
 void ler_sensores()
 {
-  distanciaDF = (sensorDF.read() - 20) / 10;
+  distanciaDF = (sensorDF.read()) / 10;
   if (distanciaDF > 400)
   {
-    distanciaDF = (sensorDF.read() - 20) / 10;
+    distanciaDF = (sensorDF.read()) / 10;
   }
   sensorDF.timeoutOccurred() ? distanciaDF = 400 : distanciaDF = distanciaDF;
 
-  distanciaDR = (sensorDR.read() - 20) / 10;
+  distanciaDR = (sensorDR.read()) / 10;
   if (distanciaDR > 400)
   {
-    distanciaDR = (sensorDR.read() - 20) / 10;
+    distanciaDR = (sensorDR.read()) / 10;
   }
   sensorDR.timeoutOccurred() ? distanciaDR = 400 : distanciaDR = distanciaDR;
 
-  distanciaC = (sensorC.read() - 10) / 10;
+  distanciaC = (sensorC.read()) / 10;
   sensorC.timeoutOccurred() ? distanciaC = 400 : distanciaC = distanciaC;
 
   if (distanciaC > 600)
@@ -280,8 +280,8 @@ void loop()
   wdt_reset();
   ler_sensores();
 
-  double distanciaMIN = 5;
-  double distanciaMAX = 11;
+  double distanciaMIN = 1;
+  double distanciaMAX = 5;
 
   if (distanciaDF > tamanho_pista) // 5 -> curva pra direita
   {
@@ -302,7 +302,7 @@ void loop()
     }
   }
 
-  if (distanciaC > 8) // se a distanciaC for maior que 6, sei que posso ir pra frente, mas preciso verificar minha distancia pra parede de referencia
+  if (distanciaC > 8) // se a distanciaC for maior, sei que posso ir pra frente, mas preciso verificar minha distancia pra parede de referencia
   {
     if (media > distanciaMIN && media < distanciaMAX) // corrigir a inclinação com base na média (na realidade, seria com base no angulo ne?)
     {
@@ -310,8 +310,7 @@ void loop()
       acelera(100, 85); // isso era pra andar reto, ajustar
       delay(50);
     }
-
-    else if (min(distanciaDF, distanciaDR) <= distanciaMIN || max(distanciaDF, distanciaDR) >= distanciaMAX)
+    else
     {
       ler_sensores();
       double original_angle = angle;
@@ -326,32 +325,44 @@ void loop()
         else
         {
           esquerda();
-          acelera(85, 85);
+          acelera(95, 95);
           delay(75 * abs(angle));
         }
-        Serial.print("Delay: ");
-        Serial.println(100 * abs(angle));
         frente();
         acelera(0, 0);
         ler_sensores();
-        imprimeDistancias();
       }
-      acelera(100, 85);
-      delay(50);
     }
+    if (min(distanciaDF, distanciaDR) <= distanciaMIN)
+    {
+      // forçar pra esquerda
+      acelera(100, 90);
+    }
+    else if (max(distanciaDF, distanciaDR) >= distanciaMAX)
+    {
+      // forçar pra direita
+      acelera(100, 70);
+    }
+    else{
+      acelera(100,85);
+    }
+    delay(50);
   }
   else
   {
-    while (distanciaC < 8) // GIRAR ATE ENCONTRAR A ABERTURA NA DIREITA, OU VOLTAR POR ONDE VEIO CASO SEJA UM SEM SAIDA
+    while (distanciaC < 12) // GIRAR ATE ENCONTRAR A ABERTURA NA DIREITA, OU VOLTAR POR ONDE VEIO CASO SEJA UM SEM SAIDA
     {
       re();
-      acelera(100,70);
+      acelera(100, 70);
       delay(75);
+
       esquerda();
       acelera(100, 100);
       delay(75);
+
       parar();
       delay(75);
+
       frente();
       acelera(0, 0);
       ler_sensores();
