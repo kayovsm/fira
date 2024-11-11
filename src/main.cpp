@@ -54,21 +54,21 @@ void apaga_led()
 
 void ler_sensores()
 {
-  distanciaDF = (sensorDF.read()) / 10;
+  distanciaDF = (sensorDF.read()) / 10.0;
   if (distanciaDF > 400)
   {
-    distanciaDF = (sensorDF.read()) / 10;
+    distanciaDF = (sensorDF.read()) / 10.0;
   }
   sensorDF.timeoutOccurred() ? distanciaDF = 400 : distanciaDF = distanciaDF;
 
-  distanciaDR = (sensorDR.read()) / 10;
+  distanciaDR = (sensorDR.read()) / 10.0;
   if (distanciaDR > 400)
   {
-    distanciaDR = (sensorDR.read()) / 10;
+    distanciaDR = (sensorDR.read()) / 10.0;
   }
   sensorDR.timeoutOccurred() ? distanciaDR = 400 : distanciaDR = distanciaDR;
 
-  distanciaC = (sensorC.read()) / 10;
+  distanciaC = (sensorC.read()) / 10.0;
   sensorC.timeoutOccurred() ? distanciaC = 400 : distanciaC = distanciaC;
 
   if (distanciaC > 600)
@@ -279,6 +279,7 @@ void loop()
 {
   wdt_reset();
   ler_sensores();
+  imprimeDistancias();
 
   double distanciaMIN = 1;
   double distanciaMAX = 5;
@@ -316,18 +317,21 @@ void loop()
       double original_angle = angle;
       while (original_angle * angle > 0)
       {
+        float max_voltage_original = MAX_VOLTAGE;
+        MAX_VOLTAGE = 165;
         if (angle > 0)
         {
           direita();
           acelera(100, 100);
-          delay(75 * abs(angle));
+          delay(10);
         }
         else
         {
           esquerda();
-          acelera(95, 95);
-          delay(75 * abs(angle));
+          acelera(100, 100);
+          delay(10);
         }
+        MAX_VOLTAGE = max_voltage_original;
         frente();
         acelera(0, 0);
         ler_sensores();
