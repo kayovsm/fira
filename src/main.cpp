@@ -117,6 +117,83 @@ float tratamento(float vel)
   return vel;
 }
 
+void acende_led(int num) {
+  apaga_led();
+
+  switch (num) {
+    case 0:
+      digitalWrite(led_branco, LOW);
+      digitalWrite(led_vermelho, LOW);
+      digitalWrite(led_verde, LOW);
+      digitalWrite(led_azul, LOW);
+      break;
+    case 1:
+      digitalWrite(led_azul, HIGH);
+      break;
+    case 2:
+      digitalWrite(led_verde, HIGH);
+      break;
+    case 3:
+      digitalWrite(led_verde, HIGH);
+      digitalWrite(led_azul, HIGH);
+      break;
+    case 4:
+      digitalWrite(led_vermelho, HIGH);
+      break;
+    case 5:
+      digitalWrite(led_vermelho, HIGH);
+      digitalWrite(led_azul, HIGH);
+      break;
+    case 6:
+      digitalWrite(led_vermelho, HIGH);
+      digitalWrite(led_verde, HIGH);
+      break;
+    case 7:
+      digitalWrite(led_vermelho, HIGH);
+      digitalWrite(led_verde, HIGH);
+      digitalWrite(led_azul, HIGH);
+      break;
+    case 8:
+      digitalWrite(led_branco, HIGH);
+      break;
+    case 9:
+      digitalWrite(led_branco, HIGH);
+      digitalWrite(led_azul, HIGH);
+      break;
+    case 10:
+      digitalWrite(led_branco, HIGH);
+      digitalWrite(led_verde, HIGH);
+      break;
+    case 11:
+      digitalWrite(led_branco, HIGH);
+      digitalWrite(led_verde, HIGH);
+      digitalWrite(led_azul, HIGH);
+      break;
+    case 12:
+      digitalWrite(led_branco, HIGH);
+      digitalWrite(led_vermelho, HIGH);
+      break;
+    case 13:
+      digitalWrite(led_branco, HIGH);
+      digitalWrite(led_vermelho, HIGH);
+      break;
+    case 14:
+      digitalWrite(led_branco, HIGH);
+      digitalWrite(led_vermelho, HIGH);
+      digitalWrite(led_verde, HIGH);
+      break;
+    case 15:
+      digitalWrite(led_branco, HIGH);
+      digitalWrite(led_vermelho, HIGH);
+      digitalWrite(led_verde, HIGH);
+      digitalWrite(led_azul, HIGH);
+      break;
+    default:
+      apaga_led();
+      break;
+  }
+}
+
 void re()
 {
   digitalWrite(IN1, HIGH);
@@ -182,14 +259,6 @@ void acelera(float vel_esquerda, float vel_direita)
   // Serial.println(vel_direita_int);
 }
 
-void acende_leds()
-{
-  digitalWrite(led_azul, HIGH);
-  digitalWrite(led_branco, HIGH);
-  digitalWrite(led_verde, HIGH);
-  digitalWrite(led_vermelho, HIGH);
-}
-
 void setup()
 {
   while (!Serial)
@@ -228,7 +297,7 @@ void setup()
   {
     Serial.print("Failed to detect and initialize sensor ");
     Serial.println("E");
-    acende_leds();
+    acende_led(15);
     while (1)
     {
     }
@@ -243,7 +312,7 @@ void setup()
   {
     Serial.print("Failed to detect and initialize sensor ");
     Serial.println("D");
-    acende_leds();
+    acende_led(15);
     while (1)
     {
     }
@@ -258,7 +327,7 @@ void setup()
   {
     Serial.print("Failed to detect and initialize sensor ");
     Serial.println("C");
-    acende_leds();
+    acende_led(15);
     while (1)
     {
     }
@@ -281,52 +350,58 @@ void setup()
 // DF é o mais próximo dos motores, enquanto o DR é o sensor na parte mais ao fundo do carrinho
 void loop()
 {
-
   ler_sensores();
   // imprimeDistancias();
 
   double distanciaMIN = 1;
   double distanciaMAX = 5;
 
-  if (distanciaDF > tamanho_pista && distanciaDR < tamanho_pista) // 5 -> curva pra direita
+  if (distanciaDF > tamanho_pista && distanciaDR < tamanho_pista) // -> curva pra direita
   {
     // girar pra direita ate encontrar de novo a parede (alguma leitura)
     // vai pra frente
     frente();
-    while (distanciaDF > tamanho_pista)
+    while (distanciaDF > tamanho_pista) // 2
     {
+      acende_led(2);
       acelera(100, 60);
       ler_sensores();
     }
-    while (distanciaDF < tamanho_pista)
+    while (distanciaDF < tamanho_pista) // 3
     {
+      acende_led(3);
       acelera(100, 85);
       ler_sensores();
     }
-    acelera(0,0);
+    acelera(0, 0);
   }
   else // perdi o dois sensores
   {
     frente();
     time = millis();
-    while ((distanciaDR > tamanho_pista && distanciaDF > tamanho_pista) && millis()-time <= 150)
+    while ((distanciaDR > tamanho_pista && distanciaDF > tamanho_pista) && millis() - time <= 150) // 4
     {
+      acende_led(4);
       acelera(100, 75);
       ler_sensores();
     }
-    if((distanciaDR > tamanho_pista && distanciaDF > tamanho_pista)){
+    if ((distanciaDR > tamanho_pista && distanciaDF > tamanho_pista))
+    { // 5 - os dois perderam os sensores -  o que fazer?
       // direita();
+      acende_led(5);
     }
-    acelera(0,0);
+    acelera(0, 0);
   }
 
   if (distanciaC > 8) // se a distanciaC for maior, sei que posso ir pra frente, mas preciso verificar minha distancia pra parede de referencia
   {
-    if (media > distanciaMIN && media < distanciaMAX) // corrigir a inclinação com base na média (na realidade, seria com base no angulo ne?)
+    if (media > distanciaMIN && media < distanciaMAX) // 6 - corrigir a inclinação com base na média (na realidade, seria com base no angulo ne?)
     {
+      acende_led(6);
       frente();
       acelera(100, 85); // isso era pra andar reto, ajustar
       delay(50);
+      ler_sensores();
     }
     else
     {
@@ -336,14 +411,16 @@ void loop()
       {
         float max_voltage_original = MAX_VOLTAGE;
         MAX_VOLTAGE = 165;
-        if (distanciaDF - distanciaDR > 0)
+        if (distanciaDF - distanciaDR > 0) // 7
         {
+          acende_led(7);
           direita();
           acelera(100, 100);
           delay(20);
         }
-        else
+        else // 8
         {
+          acende_led(8);
           esquerda();
           acelera(100, 100);
           delay(20);
@@ -354,26 +431,30 @@ void loop()
         ler_sensores();
       }
     }
-    if (min(distanciaDF, distanciaDR) <= distanciaMIN)
+    if (min(distanciaDF, distanciaDR) <= distanciaMIN) // 9
     {
       // forçar pra esquerda
+      acende_led(9);
       acelera(100, 90);
     }
-    else if (max(distanciaDF, distanciaDR) >= distanciaMAX)
+    else if (max(distanciaDF, distanciaDR) >= distanciaMAX) // 10
     {
       // forçar pra direita
-      acelera(100, 70);
+      acende_led(10);
+      acelera(100, 0);
     }
-    else
+    else // 11
     {
+      acende_led(11);
       acelera(100, 85);
     }
     delay(50);
   }
   else
   {
-    while (distanciaC < 12) // GIRAR ATE ENCONTRAR A ABERTURA NA DIREITA, OU VOLTAR POR ONDE VEIO CASO SEJA UM SEM SAIDA
+    while (distanciaC < 12) // 12 - GIRAR ATE ENCONTRAR A ABERTURA NA DIREITA, OU VOLTAR POR ONDE VEIO CASO SEJA UM SEM SAIDA
     {
+      acende_led(12);
       re();
       acelera(100, 70);
       delay(75);
