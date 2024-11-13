@@ -56,7 +56,6 @@ void apaga_led()
 
 void ler_sensores()
 {
-  apaga_led();
   distanciaDF = (sensorDF.read()) / 10.0;
   if (sensorDF.timeoutOccurred())
   {
@@ -254,11 +253,6 @@ void acelera(float vel_esquerda, float vel_direita)
   int vel_esquerda_int = round(tratamento((vel_esquerda)));
   analogWrite(direcao[1], vel_esquerda_int);
   analogWrite(direcao[0], vel_direita_int);
-
-  // Serial.println(direcao[0]);
-  // Serial.println(direcao[1]);
-  // Serial.println(vel_esquerda_int);
-  // Serial.println(vel_direita_int);
 }
 
 void setup()
@@ -287,12 +281,13 @@ void setup()
   pinMode(A3, OUTPUT);
   pinMode(A2, INPUT);
   digitalWrite(A3, HIGH);
-  pinMode(xshutPinsE, INPUT);
-  delay(10);
 
   digitalWrite(led_branco, HIGH);
   delay(100);
   digitalWrite(led_branco, LOW);
+
+  pinMode(xshutPinsE, INPUT);
+  delay(10);
 
   sensorDF.setTimeout(500);
   if (!sensorDF.init())
@@ -306,6 +301,7 @@ void setup()
   }
   sensorDF.setAddress(0x2A);
   sensorDF.startContinuous(50);
+  
   pinMode(xshutPinsD, INPUT);
   delay(10);
 
@@ -359,19 +355,18 @@ void ajuste(int delay_time)
     direita();
     acende_led(7);
     acelera(100, 100);
-    delay(delay_time * abs(distanciaDF - distanciaDR));
+    delay(delay_time);
   }
   else // 8
   {
     esquerda();
     acende_led(8);
     acelera(100, 100);
-    delay(delay_time * abs(distanciaDF - distanciaDR));
+    delay(delay_time);
   }
   frente();
   acelera(0, 0);
   MAX_VOLTAGE = max_voltage_original;
-  ler_sensores();
 }
 
 // DF é o mais próximo dos motores, enquanto o DR é o sensor na parte mais ao fundo do carrinho
@@ -379,38 +374,39 @@ void loop()
 {
   //
   // imprimeDistancias();
-
+  imprimeDistancias();
   double distanciaMIN = 1;
   double distanciaMAX = 5;
 
   ler_sensores();
   if (distanciaC > 8) // se a distanciaC for maior, sei que posso ir pra frente, mas preciso verificar minha distancia pra parede de referencia
   {
-    if (media > distanciaMIN && media < distanciaMAX) // 6 - corrigir a inclinação com base na média (na realidade, seria com base no angulo ne?)
-    {
-      acende_led(6);
-      frente();
-      acelera(100, 85); // isso era pra andar reto, ajustar
-    }
-    else if (min(distanciaDF, distanciaDR) <= distanciaMIN) // 9
-    {
-      // forçar pra esquerda
-      acende_led(9);
-      acelera(0, 100);
-    }
-    else // 10
-    {
-      // forçar pra direita
-      acende_led(10);
-      acelera(100, 0);
-    }
-    delay(75);
-    ajuste(20);
+    // if (media > distanciaMIN && media < distanciaMAX) // 6 - corrigir a inclinação com base na média (na realidade, seria com base no angulo ne?)
+    // {
+    //   acende_led(6);
+    //   frente();
+    //   acelera(100, 85); // isso era pra andar reto, ajustar
+    // }
+    // else if (min(distanciaDF, distanciaDR) <= distanciaMIN) // 9
+    // {
+    //   // forçar pra esquerda
+    //   acende_led(9);
+    //   acelera(0, 100);
+    // }
+    // else // 10
+    // {
+    //   // forçar pra direita
+    //   acende_led(10);
+    //   acelera(100, 0);
+    // }
+    // delay(100);
+    ajuste(50);
   }
   else
   {
     while (distanciaC < 12) // 12 - GIRAR ATE ENCONTRAR A ABERTURA NA DIREITA, OU VOLTAR POR ONDE VEIO CASO SEJA UM SEM SAIDA
     {
+      imprimeDistancias();
       acende_led(12);
       re();
       acelera(100, 70);
