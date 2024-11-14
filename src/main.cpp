@@ -301,7 +301,7 @@ void setup()
   }
   sensorDF.setAddress(0x2A);
   sensorDF.startContinuous(50);
-  
+
   pinMode(xshutPinsD, INPUT);
   delay(10);
 
@@ -366,6 +366,7 @@ void ajuste(int delay_time)
   }
   frente();
   acelera(0, 0);
+  // delay(10);
   MAX_VOLTAGE = max_voltage_original;
 }
 
@@ -375,31 +376,32 @@ void loop()
   //
   // imprimeDistancias();
   imprimeDistancias();
-  double distanciaMIN = 1;
-  double distanciaMAX = 5;
+  double distanciaMIN = 10;
+  double distanciaMAX = 20;
 
   ler_sensores();
   if (distanciaC > 8) // se a distanciaC for maior, sei que posso ir pra frente, mas preciso verificar minha distancia pra parede de referencia
   {
-    // if (media > distanciaMIN && media < distanciaMAX) // 6 - corrigir a inclinação com base na média (na realidade, seria com base no angulo ne?)
-    // {
-    //   acende_led(6);
-    //   frente();
-    //   acelera(100, 85); // isso era pra andar reto, ajustar
-    // }
-    // else if (min(distanciaDF, distanciaDR) <= distanciaMIN) // 9
-    // {
-    //   // forçar pra esquerda
-    //   acende_led(9);
-    //   acelera(0, 100);
-    // }
-    // else // 10
-    // {
-    //   // forçar pra direita
-    //   acende_led(10);
-    //   acelera(100, 0);
-    // }
-    // delay(100);
+    if (media > distanciaMIN && media < distanciaMAX) // 6 - corrigir a inclinação com base na média (na realidade, seria com base no angulo ne?)
+    {
+      acende_led(6);
+      frente();
+      acelera(100, 85); // isso era pra andar reto, ajustar
+    }
+    if (min(distanciaDF, distanciaDR) <= distanciaMIN) // 9
+    {
+      // forçar pra esquerda
+      acende_led(9);
+      acelera(0, 100);
+    }
+    else if(max(distanciaDF, distanciaDR) >= distanciaMAX)// 10
+    {
+      // forçar pra direita
+      acende_led(10);
+      frente();
+      acelera(100, 0);
+    }
+    delay(75);                                               
     ajuste(50);
   }
   else
