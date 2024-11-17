@@ -1,5 +1,5 @@
-#include "Arduino.h"
-#include "VL53L1X.h"
+#include <Arduino.h>
+#include <VL53L1X.h>
 #include <math.h>
 #include <stdlib.h>
 #include <avr/wdt.h>
@@ -35,6 +35,8 @@ double media;
 double DIS_MAX = 7.7;
 double dist_sensores = 4.1;
 double angle;
+double distanciaMIN = 8;
+double distanciaMAX = 14; 
 
 unsigned long time;
 
@@ -376,8 +378,6 @@ void loop()
   //
   // imprimeDistancias();
   imprimeDistancias();
-  double distanciaMIN = 10;
-  double distanciaMAX = 20;
 
   ler_sensores();
   if (distanciaC > 8) // se a distanciaC for maior, sei que posso ir pra frente, mas preciso verificar minha distancia pra parede de referencia
@@ -394,14 +394,14 @@ void loop()
       acende_led(9);
       acelera(0, 100);
     }
-    else if(max(distanciaDF, distanciaDR) >= distanciaMAX)// 10
+    else if (max(distanciaDF, distanciaDR) >= distanciaMAX) // 10
     {
       // forçar pra direita
       acende_led(10);
       frente();
       acelera(100, 0);
     }
-    delay(75);                                               
+    delay(75);
     ajuste(50);
   }
   else
