@@ -35,8 +35,9 @@ double media;
 double DIS_MAX = 7.7;
 double dist_sensores = 4.1;
 double angle;
-double distanciaMIN = 8;
-double distanciaMAX = 14; 
+
+double distanciaMIN = 3.5;
+double distanciaMAX = 11.5; 
 
 unsigned long time;
 
@@ -351,7 +352,7 @@ void ajuste(int delay_time)
 {
   ler_sensores();
   float max_voltage_original = MAX_VOLTAGE;
-  MAX_VOLTAGE = 165;
+  MAX_VOLTAGE = 120;
   if (distanciaDF - distanciaDR > 0) // 7
   {
     direita();
@@ -380,13 +381,13 @@ void loop()
   imprimeDistancias();
 
   ler_sensores();
-  if (distanciaC > 8) // se a distanciaC for maior, sei que posso ir pra frente, mas preciso verificar minha distancia pra parede de referencia
+  if (distanciaC > 14) // se a distanciaC for maior, sei que posso ir pra frente, mas preciso verificar minha distancia pra parede de referencia
   {
-    if (media > distanciaMIN && media < distanciaMAX) // 6 - corrigir a inclinação com base na média (na realidade, seria com base no angulo ne?)
+    if (media > distanciaMIN && media < distanciaMAX) // 6 - andar reto
     {
       acende_led(6);
       frente();
-      acelera(100, 85); // isso era pra andar reto, ajustar
+      acelera(100, 100); // isso era pra andar reto, ajustar
     }
     if (min(distanciaDF, distanciaDR) <= distanciaMIN) // 9
     {
@@ -400,26 +401,28 @@ void loop()
       acende_led(10);
       frente();
       acelera(100, 0);
+      delay(75);
+      acelera(80,70);
     }
     delay(75);
     ajuste(50);
   }
   else
   {
-    while (distanciaC < 12) // 12 - GIRAR ATE ENCONTRAR A ABERTURA NA DIREITA, OU VOLTAR POR ONDE VEIO CASO SEJA UM SEM SAIDA
+    while (distanciaC < 17) // 12 - GIRAR ATE ENCONTRAR A ABERTURA NA DIREITA, OU VOLTAR POR ONDE VEIO CASO SEJA UM SEM SAIDA
     {
       imprimeDistancias();
       acende_led(12);
-      re();
-      acelera(100, 70);
-      delay(75);
+      // re();
+      // acelera(100, 70);
+      // delay(75);
 
       esquerda();
       acelera(100, 100);
-      delay(75);
+      delay(150);
 
       parar();
-      delay(75);
+      delay(25);
 
       frente();
       acelera(0, 0);
