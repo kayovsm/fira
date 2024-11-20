@@ -36,12 +36,12 @@ double DIS_MAX = 7.7;
 double dist_sensores = 4.1;
 double angle;
 
-double distanciaMIN = 3.5;
-double distanciaMAX = 11.5;
+double distanciaMIN = 4.5;
+double distanciaMAX = 10.0;
 
 unsigned long time;
 
-float MAX_VOLTAGE = 80;
+float MAX_VOLTAGE = 80.0;
 float MIN_VOLTAGE_ESQ = 50;
 float MIN_VOLTAGE_DIR = 30;
 
@@ -258,11 +258,11 @@ void acelera(float vel_esquerda, float vel_direita)
   analogWrite(direcao[0], vel_direita_int);
 }
 
-void girar_direita()
+void girar_direita(int diminuir = 0)
 {
   direita();
   acelera(100, 100);
-  delay(360);
+  delay(360+diminuir);
   frente();
   acelera(0, 0);
 }
@@ -272,23 +272,45 @@ void ajuste(int delay_time)
   ler_sensores();
   float max_voltage_original = MAX_VOLTAGE;
   MAX_VOLTAGE = 120;
-  if (distanciaDF - distanciaDR > 0) // 7
-  {
-    direita();
-    acende_led(7);
+  const float TOLERANCIA = 1.0;
+
+  while (abs(distanciaDF - distanciaDR) > TOLERANCIA) {
+    if (distanciaDF > distanciaDR) {
+      // Se a distância dianteira for maior, alinhar para a direita
+      direita();
+      acende_led(13);
+    } else {
+      // Se a distância traseira for maior, alinhar para a esquerda
+      esquerda();
+      acende_led(14);
+    }
     acelera(100, 100);
-    delay(delay_time);
+    delay(30);
+    acelera(0, 0);
+    delay(30);
+
+    // Atualizar leituras dos sensores
+    ler_sensores();
   }
-  else // 8
-  {
-    esquerda();
-    acende_led(8);
-    acelera(100, 100);
-    delay(delay_time);
-  }
-  frente();
-  acelera(0, 0);
-  // delay(10);
+
+
+  // if (distanciaDF - distanciaDR > 0) // 7
+  // {
+  //   direita();
+  //   acende_led(7);
+  //   acelera(100, 100);
+  //   delay(delay_time);
+  // }
+  // else // 8
+  // {
+  //   esquerda();
+  //   acende_led(8);
+  //   acelera(100, 100);
+  //   delay(delay_time);
+  // }
+  // frente();
+  // acelera(0, 0);
+  // // delay(10);
   MAX_VOLTAGE = max_voltage_original;
 }
 
@@ -332,6 +354,12 @@ void alinhar()
     return;
   }
 }
+void andar_reto(int vel_dir = 77, int vel_esq = 100)
+{
+  acelera(vel_esq, vel_dir);
+}
+
+
 
 void setup()
 {
@@ -426,87 +454,30 @@ void setup()
 // DF é o mais próximo dos motores, enquanto o DR é o sensor na parte mais ao fundo do carrinho
 void loop()
 {
-  // acelera(100,95);
-  // delay(1000);
   imprimeDistancias();
-
+  
   ler_sensores();
   if (distanciaDF > tamanho_pista && distanciaDR < tamanho_pista) //  -> curva pra direita
   {
-    re();
-    while (distanciaDF > tamanho_pista)
-    {
-      acelera(100, 100);
-      ler_sensores();
-    }
-    delay(100);
-    frente();
-    acelera(0, 0);
-    delay(75);
-    alinhar();
-    acelera(0, 0);
-    delay(50);
     while (distanciaDF < tamanho_pista || distanciaDR < tamanho_pista)
     {
-      acelera(100, 95);
+      andar_reto();
       ler_sensores();
     }
     girar_direita();
     frente();
-    acelera(100, 95);
+    andar_reto();
     delay(1000);
     if (distanciaDF > tamanho_pista && distanciaDR > tamanho_pista)
     {
-      girar_direita();
+      girar_direita(-20);
       frente();
       while (distanciaDF > tamanho_pista)
       {
-        acelera(100, 95);
+        andar_reto();
         ler_sensores();
       }
     }
-
-    //   // girar pra direita ate encontrar de novo a parede (alguma leitura)
-    //   // vai pra frente
-    //   direita();
-    //   while (distanciaDF > tamanho_pista) // 1
-    //   {
-    //     acende_led(1);
-    //     acelera(100, 100);
-    //     delay(50);
-    //     acelera(0, 0);
-    //     delay(50);
-    //     ler_sensores();
-    //   }
-    //   frente();
-    //   while (distanciaDF < tamanho_pista) // 2
-    //   {
-    //     acende_led(2);
-    //     acelera(100, 70);
-    //     delay(50);
-    //     acelera(0, 0);
-    //     delay(50);
-    //     ler_sensores();
-    //   }
-    //   acelera(0, 0);
-    // }
-    // else //perdi o dois sensores
-    // {
-    //   frente();
-    //   time = millis();
-    //   while ((distanciaDR > tamanho_pista && distanciaDF > tamanho_pista) && millis() - time <= 150) // 3
-    //   {
-    //     acende_led(3);
-    //     acelera(100, 75);
-    //     ler_sensores();
-    //   }
-    //   if ((distanciaDR > tamanho_pista && distanciaDF > tamanho_pista)) // 4
-    //   {
-    //     acende_led(4);
-    //     delay(100);
-    //     // direita();
-    //   }
-    //   acelera(0, 0);
   }
   if (distanciaC > 14) // se a distanciaC for maior, sei que posso ir pra frente, mas preciso verificar minha distancia pra parede de referencia
   {
@@ -514,13 +485,15 @@ void loop()
     {
       acende_led(6);
       frente();
-      acelera(100, 95); // isso era pra andar reto, ajustar
+      andar_reto(); // isso era pra andar reto, ajustar
+      delay(25);
     }
     if (min(distanciaDF, distanciaDR) <= distanciaMIN) // 9
     {
       // forçar pra esquerda
+      frente();
       acende_led(9);
-      acelera(0, 100);
+      acelera(100, 80);
     }
     else if (max(distanciaDF, distanciaDR) >= distanciaMAX) // 10
     {
@@ -529,9 +502,10 @@ void loop()
       frente();
       acelera(100, 0);
       delay(75);
-      acelera(80, 70);
+      acelera(100, 73);
+      delay(50);
     }
-    delay(75);
+    delay(25);
     ajuste(50);
   }
   else
