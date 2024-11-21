@@ -1,204 +1,519 @@
-#define TRIGD A0 // Pino Trig Sensor Direito
-#define ECHOD A1 // Pino Echo Sensor Direito
-#define TRIGE A2 // Pino Trig Sensor Esquerdo
-#define ECHOE A3 // Pino Echo Sensor Esquerdo
-#define TRIGC A4 // Pino Trig Sensor Centro
-#define ECHOC A5 // Pino Echo Sensor Centro
-#define ENA 5    // ENA PWM Motor Esquerdo
-#define ENB 6    // ENB PWM Motor Direito///
-#define IN1 3    // DIR Motor Esquerdo
-#define IN2 9    // DIR Motor Esquerdo
-#define IN3 10    // DIR Motor Direito
-#define IN4 11   // DIR Motor Direito
-#define alpha 1  // taxa do filtro 0% a 100%
+#include <Arduino.h>
+#include <VL53L1X.h>
+#include <math.h>
+#include <stdlib.h>
+#include <avr/wdt.h>
+#include <Wire.h>
+
+#define led_branco 2
+#define led_vermelho 3
+#define led_verde 7
+#define led_azul 8
+
+#define IN1 11 // DIR Motor Direito
+#define IN2 10 // DIR Motor Direito
+#define IN3 5  // DIR Motor Esquerdo
+#define IN4 6  // DIR Motor Esquerdo
+
+#define xshutPinsE 12
+#define xshutPinsC 9
+#define xshutPinsD 4
+
+VL53L1X sensorC;
+VL53L1X sensorDF;
+VL53L1X sensorDR;
 
 // Variáveis Globais
-unsigned int distanciaE; // unsigneg significa valores sem sinasi, + ou -
-unsigned int distanciaC; // int considera valores ate 2^16
-unsigned int distanciaD;
-unsigned char vel = 150; // char considera valores ate 2^8 ou seja, 0 a 256
+float tamanho_carrinho = 14;
+float tamanho_pista = 16;
 
-unsigned int sensorUS(int pinoTrig, int pinoEcho)
+double distanciaDF;
+double distanciaC;
+double distanciaDR;
+double delta;
+double media;
+double DIS_MAX = 7.7;
+double dist_sensores = 4.1;
+double angle;
+
+double distanciaMIN = 4.5;
+double distanciaMAX = 10.0;
+
+double valor_espDR = 0;
+double valor_espDF = 0;
+
+unsigned long time;
+
+float MAX_VOLTAGE = 80.0;
+float MIN_VOLTAGE_ESQ = 50;
+float MIN_VOLTAGE_DIR = 30;
+
+int direcao[2];
+
+void (*reset)(void) = 0;
+
+void apaga_led()
 {
-  unsigned int distancia;
-  unsigned int tempoPulsoEcho;
-  digitalWrite(pinoTrig, HIGH);                   // Ativa o pino de trigger
-  delayMicroseconds(10);                          // Aguarda 10 microssegundos
-  digitalWrite(pinoTrig, LOW);                    // Desativa o pino de trigger
-  tempoPulsoEcho = pulseIn(pinoEcho, HIGH, 7500); // retorna o tempo em microssegundos
-  delay(5);
-  distancia = tempoPulsoEcho / 58;
-
-  if ((distancia == 0) || (distancia > 40)) // caso o sensor leia o valor zero ou maior que 40 cm, ele retorna o valor 40
-    return (40);
-
-  else
-    return (distancia);
+  digitalWrite(led_azul, LOW);
+  digitalWrite(led_branco, LOW);
+  digitalWrite(led_verde, LOW);
+  digitalWrite(led_vermelho, LOW);
 }
 
-float filtroE(float y) // filtro para sensor Esquerdo
-{                      // mantem uma certa porcentagem do valor lido anteriormente
-  static float yf;     // static mantem o ultimo valor lido, nâo cria nova variavel
-  yf = alpha * y + (1 - alpha) * yf;
-  return (yf);
+void ler_sensores()
+{
+  distanciaDF = (sensorDF.read()) / 10.0;
+  valor_espDF = distanciaDF;
+  if (sensorDF.timeoutOccurred())
+  {
+    reset();
+  }
+
+  distanciaDR = (sensorDR.read()) / 10.0;
+  valor_espDR = distanciaDR;
+  if (sensorDR.timeoutOccurred())
+  {
+    reset();
+  }
+
+  distanciaC = (sensorC.read()) / 10.0;
+  if (sensorC.timeoutOccurred())
+  {
+    reset();
+  }
+
+  if (distanciaC > 600)
+  {
+    distanciaC = 0;
+  }
+  if (distanciaDR > 600)
+  {
+    distanciaDR = 0;
+  }
+  if (distanciaDF > 600)
+  {
+    distanciaDF = 0;
+  }
+
+  media = (distanciaDF + distanciaDR) / 2;
+  angle = atan((distanciaDF - distanciaDR) / dist_sensores);
 }
 
-float filtroC(float y)
+void imprimeDistancias()
 {
-  static float yf; // filtro para sensor central
-  yf = alpha * y + (1 - alpha) * yf;
-  return (yf);
-}
-
-float filtroD(float y)
-{
-  static float yf; // filtro para sensor central
-  yf = alpha * y + (1 - alpha) * yf;
-  return (yf);
-}
-
-void imprimeDistancias(void) // função para imprimir distancias no monitor serial
-{
-  Serial.print("Distancia Esquerda: ");
-  Serial.print(distanciaE);
-  Serial.print(" cm   ");
-  Serial.print("Distancia Centro: ");
+  Serial.print("Dis DF: ");
+  Serial.print(distanciaDF);
+  Serial.print(" cm  /  ");
+  Serial.print("Dis Cen: ");
   Serial.print(distanciaC);
-  Serial.print(" cm   ");
-  Serial.print("Distancia Direita: ");
-  Serial.print(distanciaD);
-  Serial.println(" cm");
-}
-void reDireita(unsigned char vel, unsigned int tempo) // função para marcha ré para direita
-{
-  analogWrite(ENA, vel + 50); // roda da esquerda gira mias rapido para...
-  analogWrite(ENB, vel - 50); // o robo tender a direita
-  digitalWrite(IN1, 1);
-  digitalWrite(IN2, 0);
-  digitalWrite(IN3, 1);
-  digitalWrite(IN4, 0);
-  delay(tempo);
-}
-void reEsquerda(unsigned char vel, unsigned int tempo) // função para marcha ré para esquerda
-{
-  analogWrite(ENA, vel - 50); // roda da direita gira mias rapido para...
-  analogWrite(ENB, vel + 50); // o robo tender a direita
-  digitalWrite(IN1, 1);
-  digitalWrite(IN2, 0);
-  digitalWrite(IN3, 1);
-  digitalWrite(IN4, 0);
-  delay(tempo);
-}
-void andarFrente(unsigned char vel, unsigned int tempo) // função para andar pra frente
-{
-  analogWrite(ENA, vel);
-  analogWrite(ENB, vel);
-  digitalWrite(IN1, 0);
-  digitalWrite(IN2, 1);
-  digitalWrite(IN3, 0);
-  digitalWrite(IN4, 1);
-  delay(tempo);
-}
-void virarDireita(unsigned char vel, unsigned int tempo) // função para virar direita
-{
-  analogWrite(ENA, vel);
-  analogWrite(ENB, vel);
-  digitalWrite(IN1, 0);
-  digitalWrite(IN2, 1);
-  digitalWrite(IN3, 1);
-  digitalWrite(IN4, 0);
-  delay(tempo);
-}
-void virarEsquerda(unsigned char vel, unsigned int tempo) // função para virar esquerda
-{
-  analogWrite(ENA, vel);
-  analogWrite(ENB, vel);
-  digitalWrite(IN1, 1);
-  digitalWrite(IN2, 0);
-  digitalWrite(IN3, 0);
-  digitalWrite(IN4, 1);
-  delay(tempo);
-}
-void lerSensores(void) // função para ler distancias doas sensores
-{
-  distanciaE = sensorUS(TRIGE, ECHOE);
-  distanciaC = sensorUS(TRIGC, ECHOC);
-  distanciaD = sensorUS(TRIGD, ECHOD);
+  Serial.print(" cm   /  ");
+  Serial.print("Dis DR: ");
+  Serial.print(distanciaDR);
+  Serial.println(" cm     /   ");
+  Serial.print("Média: ");
+  Serial.println(media);
+  Serial.print("angle: ");
+  Serial.println(angle);
 }
 
-void distanciasFiltradas(void) // aplica o filtro nas dintancias lidas
+float tratamento(float vel)
 {
-  distanciaE = filtroE(distanciaE);
-  distanciaC = filtroC(distanciaC);
-  distanciaD = filtroD(distanciaD);
+  vel = min(vel, 100);
+  vel = max(vel, 0);
+  vel = (vel)*MAX_VOLTAGE / 100;
+  return vel;
 }
 
-//___________________________________________________________________________________________________________________________
-
-// Função de Configuração
-void setup()
+void acende_led(int num)
 {
-  Serial.begin(9600); // Comunicação Serial com o Computador
-  pinMode(ENA, OUTPUT);
-  pinMode(ENB, OUTPUT);
-  pinMode(IN1, OUTPUT); // definição dos pinos entradas e saidas
-  pinMode(IN2, OUTPUT);
-  pinMode(IN3, OUTPUT); // OUTPUT = Saída
-  pinMode(IN4, OUTPUT); // INPUT = Entrada
-  pinMode(TRIGD, OUTPUT);
-  pinMode(ECHOD, INPUT);
-  pinMode(TRIGE, OUTPUT);
-  pinMode(ECHOE, INPUT);
-  pinMode(TRIGC, OUTPUT);
-  pinMode(ECHOC, INPUT);
-}
+  apaga_led();
 
-//___________________________________________________________________________________________________________________________________________________________
-
-// Função Principal (loop infinito)
-void loop()
-{
-  lerSensores();         // Lê os Sensores
-  distanciasFiltradas(); // filtra distancias
-  imprimeDistancias();   // imprime as distancias no serial monitor
-
-  if (distanciaE < 15)
-  { // Regra curvar direita
-    Serial.print("Curva Direita");
-    Serial.println();
-    virarDireita(150, 170);
-  }
-  if (distanciaD < 15)
-  { // Regra para curvar a esquerda
-    Serial.print("Curva Esquerda");
-    Serial.println();
-    virarEsquerda(150, 170);
-  }
-  if (distanciaC > 20)
+  switch (num)
   {
-    Serial.print("Em Frente");
-    Serial.println();
-    andarFrente(254, 50);
+  case 0:
+    digitalWrite(led_branco, LOW);
+    digitalWrite(led_vermelho, LOW);
+    digitalWrite(led_verde, LOW);
+    digitalWrite(led_azul, LOW);
+    break;
+  case 1:
+    digitalWrite(led_azul, HIGH);
+    break;
+  case 2:
+    digitalWrite(led_verde, HIGH);
+    break;
+  case 3:
+    digitalWrite(led_verde, HIGH);
+    digitalWrite(led_azul, HIGH);
+    break;
+  case 4:
+    digitalWrite(led_vermelho, HIGH);
+    break;
+  case 5:
+    digitalWrite(led_vermelho, HIGH);
+    digitalWrite(led_azul, HIGH);
+    break;
+  case 6:
+    digitalWrite(led_vermelho, HIGH);
+    digitalWrite(led_verde, HIGH);
+    break;
+  case 7:
+    digitalWrite(led_vermelho, HIGH);
+    digitalWrite(led_verde, HIGH);
+    digitalWrite(led_azul, HIGH);
+    break;
+  case 8:
+    digitalWrite(led_branco, HIGH);
+    break;
+  case 9:
+    digitalWrite(led_branco, HIGH);
+    digitalWrite(led_azul, HIGH);
+    break;
+  case 10:
+    digitalWrite(led_branco, HIGH);
+    digitalWrite(led_verde, HIGH);
+    break;
+  case 11:
+    digitalWrite(led_branco, HIGH);
+    digitalWrite(led_verde, HIGH);
+    digitalWrite(led_azul, HIGH);
+    break;
+  case 12:
+    digitalWrite(led_branco, HIGH);
+    digitalWrite(led_vermelho, HIGH);
+    break;
+  case 13:
+    digitalWrite(led_branco, HIGH);
+    digitalWrite(led_vermelho, HIGH);
+    break;
+  case 14:
+    digitalWrite(led_branco, HIGH);
+    digitalWrite(led_vermelho, HIGH);
+    digitalWrite(led_verde, HIGH);
+    break;
+  case 15:
+    digitalWrite(led_branco, HIGH);
+    digitalWrite(led_vermelho, HIGH);
+    digitalWrite(led_verde, HIGH);
+    digitalWrite(led_azul, HIGH);
+    break;
+  default:
+    apaga_led();
+    break;
   }
-  else if (distanciaC > 13)
+}
+
+void re()
+{
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+  direcao[0] = IN1;
+  direcao[1] = IN4;
+}
+
+void parar()
+{
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+  apaga_led();
+  direcao[0] = 0;
+  direcao[1] = 0;
+}
+
+void frente()
+{
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  direcao[0] = IN2;
+  direcao[1] = IN3;
+}
+
+void direita()
+{
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  direcao[0] = IN1;
+  direcao[1] = IN3;
+}
+
+void esquerda()
+{
+
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+  direcao[0] = IN2;
+  direcao[1] = IN4;
+}
+
+void acelera(float vel_esquerda, float vel_direita)
+{
+  int vel_direita_int = round(tratamento((vel_direita)));
+  int vel_esquerda_int = round(tratamento((vel_esquerda)));
+  analogWrite(direcao[1], vel_esquerda_int);
+  analogWrite(direcao[0], vel_direita_int);
+}
+
+void girar_direita(int diminuir = 0)
+{
+  direita();
+  acelera(100, 100);
+  delay(360 + diminuir);
+  frente();
+  acelera(0, 0);
+}
+
+void ajuste(int delay_time)
+{
+  ler_sensores();
+  if (distanciaDF > tamanho_pista || distanciaDR > tamanho_pista)
   {
-    Serial.print("Em Frente mais devagar");
-    Serial.println();
-    andarFrente(150, 50);
+    return;
   }
-  if (distanciaC < 13) // Regra para marcha ré
+
+  float max_voltage_original = MAX_VOLTAGE;
+  MAX_VOLTAGE = 120;
+  const float TOLERANCIA = 1.0;
+
+  while (abs(distanciaDF - distanciaDR) > TOLERANCIA)
   {
-    if (distanciaD > distanciaE)
+    if (distanciaDF > distanciaDR)
     {
-      Serial.print("Ré Esquerda");
-      Serial.println();
-      reEsquerda(200, 150);
+      // Se a distância dianteira for maior, alinhar para a direita
+      direita();
+      acende_led(13);
     }
     else
     {
-      Serial.print("Ré Direita");
-      Serial.println();
-      reDireita(200, 150);
+      // Se a distância traseira for maior, alinhar para a esquerda
+      esquerda();
+      acende_led(14);
+    }
+    acelera(100, 100);
+    delay(30);
+    acelera(0, 0);
+    delay(30);
+
+    // Atualizar leituras dos sensores
+    ler_sensores();
+  }
+
+  // if (distanciaDF - distanciaDR > 0) // 7
+  // {
+  //   direita();
+  //   acende_led(7);
+  //   acelera(100, 100);
+  //   delay(delay_time);
+  // }
+  // else // 8
+  // {
+  //   esquerda();
+  //   acende_led(8);
+  //   acelera(100, 100);
+  //   delay(delay_time);
+  // }
+  // frente();
+  // acelera(0, 0);
+  // // delay(10);
+  MAX_VOLTAGE = max_voltage_original;
+}
+
+void andar_reto(int vel_dir = 77, int vel_esq = 100)
+{
+  acelera(vel_esq, vel_dir);
+}
+
+void curva_direita()
+{
+  if (distanciaDF >= 5 && distanciaDR >= 5)
+  {
+    delay(500);
+    acelera(100, 0);
+    delay(600);
+    // teste curva reta
+    // acelera(0,0);
+    // delay(10000);
+    ler_sensores();
+
+    if(distanciaDF >= 10 || distanciaDR >= 10){
+      acelera(100,100);
+      delay(350);
+      return;
+    }
+  }
+  else
+  {
+    re();
+    acelera(100, 100);
+    delay(300);
+    frente();
+    acelera(0,0);
+    return;
+  }
+}
+
+void setup()
+{
+  while (!Serial)
+  {
+  }
+
+  Serial.begin(115200); // Comunicação Serial com o Computador
+  Wire.begin();
+  Wire.setClock(400000); // use 400 kHz I2C
+  pinMode(IN1, OUTPUT);  // definição dos pinos entradas e saidas
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);      // OUTPUT = Saída
+  pinMode(IN4, OUTPUT);      // INPUT = Entrada
+  pinMode(led_azul, OUTPUT); // definição dos pinos entradas e saidas
+  pinMode(led_branco, OUTPUT);
+  pinMode(led_verde, OUTPUT); // OUTPUT = Saída
+  pinMode(led_vermelho, OUTPUT);
+  pinMode(xshutPinsD, OUTPUT);
+  digitalWrite(xshutPinsD, LOW);
+  pinMode(xshutPinsC, OUTPUT);
+  digitalWrite(xshutPinsC, LOW);
+  pinMode(xshutPinsE, OUTPUT);
+  digitalWrite(xshutPinsE, LOW);
+  pinMode(A3, OUTPUT);
+  pinMode(A2, INPUT);
+  digitalWrite(A3, HIGH);
+
+  digitalWrite(led_branco, HIGH);
+  delay(100);
+  digitalWrite(led_branco, LOW);
+
+  pinMode(xshutPinsE, INPUT);
+  delay(10);
+
+  sensorDF.setTimeout(500);
+  if (!sensorDF.init())
+  {
+    Serial.print("Failed to detect and initialize sensor ");
+    Serial.println("E");
+    acende_led(15);
+    while (1)
+    {
+    }
+  }
+  sensorDF.setAddress(0x2A);
+  sensorDF.startContinuous(50);
+
+  pinMode(xshutPinsD, INPUT);
+  delay(10);
+
+  sensorDR.setTimeout(500);
+  if (!sensorDR.init())
+  {
+    Serial.print("Failed to detect and initialize sensor ");
+    Serial.println("D");
+    acende_led(15);
+    while (1)
+    {
+    }
+  }
+  sensorDR.setAddress(0x2A + 1);
+  sensorDR.startContinuous(50);
+  pinMode(xshutPinsC, INPUT);
+  delay(10);
+
+  sensorC.setTimeout(500);
+  if (!sensorC.init())
+  {
+    Serial.print("Failed to detect and initialize sensor ");
+    Serial.println("C");
+    acende_led(15);
+    while (1)
+    {
+    }
+  }
+  sensorC.setAddress(0x2A + 2);
+  sensorC.startContinuous(50);
+
+  Serial.print("Tamanho da pista: ");
+  Serial.println(tamanho_pista);
+
+  time = millis();
+
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
+  frente();
+  acelera(0, 0);
+  delay(4000);
+}
+
+// DF é o mais próximo dos motores, enquanto o DR é o sensor na parte mais ao fundo do carrinho
+void loop()
+{
+  imprimeDistancias();
+
+  ler_sensores();
+  if (distanciaDF > tamanho_pista && distanciaDR > tamanho_pista && distanciaC > 14) // 5 -> curva pra direita
+  {
+    // girar pra direita ate encontrar de novo a parede (alguma leitura)
+    // vai pra frente
+    // if((valor_espDF - distanciaDF) <= 0 || valor_espDF  )
+    acelera(0,0);
+    curva_direita();
+  }
+  if (distanciaC > 14) // se a distanciaC for maior, sei que posso ir pra frente, mas preciso verificar minha distancia pra parede de referencia
+  {
+    if ((media > distanciaMIN && media < distanciaMAX) || (distanciaDF > tamanho_pista || distanciaDR > tamanho_pista)) // 6 - andar reto
+    {
+      acende_led(6);
+      frente();
+      andar_reto(); // isso era pra andar reto, ajustar
+      delay(25);
+    }
+    if (min(distanciaDF, distanciaDR) <= distanciaMIN) // 9
+    {
+      // forçar pra esquerda
+      frente();
+      acende_led(9);
+      acelera(100, 80);
+    }
+    else if (max(distanciaDF, distanciaDR) >= distanciaMAX) // 10
+    {
+      // forçar pra direita
+      acende_led(10);
+      frente();
+      acelera(100, 0);
+      delay(75);
+      acelera(100, 73);
+      delay(50);
+    }
+    delay(25);
+    ajuste(50);
+  }
+  else
+  {
+    while (distanciaC < 17) // 12 - GIRAR ATE ENCONTRAR A ABERTURA NA DIREITA, OU VOLTAR POR ONDE VEIO CASO SEJA UM SEM SAIDA
+    {
+      imprimeDistancias();
+      acende_led(12);
+      // re();
+      // acelera(100, 70);
+      // delay(75);
+
+      esquerda();
+      acelera(100, 100);
+      delay(150);
+
+      parar();
+      delay(25);
+
+      frente();
+      acelera(0, 0);
+      ler_sensores();
     }
   }
 }
