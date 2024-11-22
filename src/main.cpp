@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <avr/wdt.h>
 #include <Wire.h>
+#include <EEPROM.h>
 
 #define led_branco 2
 #define led_vermelho 3
@@ -27,6 +28,9 @@ VL53L1X sensorDR;
 float tamanho_carrinho = 14;
 float tamanho_pista = 19;
 
+int endereco = 0; // Endereço na EEPROM para salvar o dado
+int contador_inic = 0;
+
 double distanciaDF;
 double distanciaC;
 double distanciaDR;
@@ -36,7 +40,7 @@ double DIS_MAX = 7.7;
 double dist_sensores = 4.1;
 double angle;
 
-double distanciaMIN = 4.5;
+double distanciaMIN = 4.0;
 double distanciaMAX = 10.0;
 
 unsigned long time;
@@ -258,29 +262,35 @@ void acelera(float vel_esquerda, float vel_direita)
   analogWrite(direcao[0], vel_direita_int);
 }
 
+void andar_reto(int vel_dir = 77, int vel_esq = 100)
+{
+  acelera(vel_esq, vel_dir);
+}
+
 void girar_direita(int diminuir = 0)
 {
   direita();
   acelera(100, 100);
-  delay(360 + diminuir);
+  delay(300 + diminuir);
   frente();
   acelera(0, 0);
 }
 
-void ajuste(int delay_time)
+void ajuste(int delay_time = 0)
 {
   ler_sensores();
   if (distanciaDF > tamanho_pista || distanciaDR > tamanho_pista)
   {
     return;
   }
-  
+
   float max_voltage_original = MAX_VOLTAGE;
   MAX_VOLTAGE = 120;
   const float TOLERANCIA = 1.0;
 
   while (abs(distanciaDF - distanciaDR) > TOLERANCIA)
   {
+    time = millis();
     if (distanciaDF > distanciaDR)
     {
       // Se a distância dianteira for maior, alinhar para a direita
@@ -301,25 +311,43 @@ void ajuste(int delay_time)
     // Atualizar leituras dos sensores
     ler_sensores();
   }
-
-  // if (distanciaDF - distanciaDR > 0) // 7
-  // {
-  //   direita();
-  //   acende_led(7);
-  //   acelera(100, 100);
-  //   delay(delay_time);
-  // }
-  // else // 8
-  // {
-  //   esquerda();
-  //   acende_led(8);
-  //   acelera(100, 100);
-  //   delay(delay_time);
-  // }
-  // frente();
-  // acelera(0, 0);
-  // // delay(10);
+  if (millis() - time > 1500)
+  {
+    andar_reto();
+    delay(50);
+    time = millis();
+  }
   MAX_VOLTAGE = max_voltage_original;
+}
+
+void girar_esquerda()
+{
+  imprimeDistancias();
+  acende_led(12);
+  time = millis();
+  while (distanciaDF < distanciaMIN + 1.5 || distanciaDR < distanciaMIN + 1.5)
+  {
+    if (millis() - time > 1500)
+    {
+      reset();
+    }
+    re();
+    acelera(60, 100);
+    delay(30);
+    ajuste();
+  }
+  if (distanciaC < 14)
+  {
+    esquerda();
+    acelera(100, 100);
+    delay(150);
+    frente();
+    acelera(0, 0);
+    delay(25);
+  }else{
+    ajuste();
+  }
+  ler_sensores();
 }
 
 void alinhar()
@@ -362,29 +390,38 @@ void alinhar()
     return;
   }
 }
-void andar_reto(int vel_dir = 77, int vel_esq = 100)
-{
-  acelera(vel_esq, vel_dir);
-}
 
 void curva_direita()
 {
   frente();
   acende_led(1);
-  acelera(0,100);
+  andar_reto();
+  delay(30);
+  acelera(0, 100);
   delay(75);
+
   acende_led(2);
-  girar_direita(-60);
+  girar_direita(80);
+
   acende_led(3);
   andar_reto();
-  delay(800);
-  acende_led(4);
-  acelera(100,35);
-  delay(1000);
-  acende_led(5);
-  andar_reto();
-  delay(1000);
-  acende_led(6);
+  delay(750);
+
+  ler_sensores();
+
+  if (distanciaDF > tamanho_pista && distanciaDR > tamanho_pista)
+  {
+    acende_led(4);
+    acelera(100, 35);
+    delay(1000);
+
+    acende_led(5);
+    andar_reto();
+    delay(1000);
+
+    acende_led(6);
+  }
+  ler_sensores();
 }
 
 void setup()
@@ -393,10 +430,15 @@ void setup()
   {
   }
 
+  EEPROM.get(endereco, contador_inic);
+  contador_inic++;
+  EEPROM.put(endereco, contador_inic);
+
   Serial.begin(115200); // Comunicação Serial com o Computador
   Wire.begin();
   Wire.setClock(400000); // use 400 kHz I2C
-  pinMode(IN1, OUTPUT);  // definição dos pinos entradas e saidas
+
+  pinMode(IN1, OUTPUT); // definição dos pinos entradas e saidas
   pinMode(IN2, OUTPUT);
   pinMode(IN3, OUTPUT);      // OUTPUT = Saída
   pinMode(IN4, OUTPUT);      // INPUT = Entrada
@@ -405,6 +447,7 @@ void setup()
   pinMode(led_verde, OUTPUT); // OUTPUT = Saída
   pinMode(led_vermelho, OUTPUT);
   pinMode(xshutPinsD, OUTPUT);
+
   digitalWrite(xshutPinsD, LOW);
   pinMode(xshutPinsC, OUTPUT);
   digitalWrite(xshutPinsC, LOW);
@@ -429,6 +472,7 @@ void setup()
     acende_led(15);
     while (1)
     {
+      EEPROM.put(endereco, 0);
     }
   }
   sensorDF.setAddress(0x2A);
@@ -440,11 +484,12 @@ void setup()
   sensorDR.setTimeout(500);
   if (!sensorDR.init())
   {
-    Serial.print("Failed to detect and initialize sensor ");
+    Serial.print("Failed to detect and initialize sensor");
     Serial.println("D");
     acende_led(15);
     while (1)
     {
+      EEPROM.put(endereco, 0);
     }
   }
   sensorDR.setAddress(0x2A + 1);
@@ -460,6 +505,7 @@ void setup()
     acende_led(15);
     while (1)
     {
+      EEPROM.put(endereco, 0);
     }
   }
   sensorC.setAddress(0x2A + 2);
@@ -474,16 +520,21 @@ void setup()
   digitalWrite(LED_BUILTIN, LOW);
   frente();
   acelera(0, 0);
-  delay(4000);
+
+  if (contador_inic == 1)
+  {
+    delay(4000);
+    andar_reto();
+    delay(1000);
+  }
 }
 
 // DF é o mais próximo dos motores, enquanto o DR é o sensor na parte mais ao fundo do carrinho
 void loop()
 {
   imprimeDistancias();
-
   ler_sensores();
-  if (distanciaDF > tamanho_pista && distanciaDR > tamanho_pista && distanciaC > 14) // 5 -> curva pra direita
+  if ((distanciaDF > tamanho_pista || distanciaDR > tamanho_pista) && distanciaC > 10) // 5 -> curva pra direita
   {
     // girar pra direita ate encontrar de novo a parede (alguma leitura)
     // vai pra frente
@@ -491,7 +542,7 @@ void loop()
   }
   if (distanciaC > 14) // se a distanciaC for maior, sei que posso ir pra frente, mas preciso verificar minha distancia pra parede de referencia
   {
-    if ((media > distanciaMIN && media < distanciaMAX) || (distanciaDF > tamanho_pista || distanciaDR > tamanho_pista)) // 6 - andar reto
+    if ((media > distanciaMIN && media < distanciaMAX) || ((distanciaDF > tamanho_pista && distanciaDR < tamanho_pista) || (distanciaDR > tamanho_pista && distanciaDF < tamanho_pista))) // 6 - andar reto
     {
       acende_led(6);
       frente();
@@ -505,7 +556,7 @@ void loop()
       acende_led(9);
       acelera(100, 80);
     }
-    else if (max(distanciaDF, distanciaDR) >= distanciaMAX) // 10
+    else if (max(distanciaDF, distanciaDR) >= distanciaMAX && max(distanciaDF, distanciaDR) < 30) // 10
     {
       // forçar pra direita
       acende_led(10);
@@ -522,22 +573,7 @@ void loop()
   {
     while (distanciaC < 17) // 12 - GIRAR ATE ENCONTRAR A ABERTURA NA DIREITA, OU VOLTAR POR ONDE VEIO CASO SEJA UM SEM SAIDA
     {
-      imprimeDistancias();
-      acende_led(12);
-      // re();
-      // acelera(100, 70);
-      // delay(75);
-
-      esquerda();
-      acelera(100, 100);
-      delay(150);
-
-      parar();
-      delay(25);
-
-      frente();
-      acelera(0, 0);
-      ler_sensores();
+      girar_esquerda();
     }
   }
 }
